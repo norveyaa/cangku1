@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>首页 · 伴读智汇</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+</head>
+<body>
+<div class="page">
+  <div id="head"></div>
+
+  <!-- 继续阅读 -->
+  <div class="card card-pad" id="continue-card"></div>
+
+  <div style="display:grid;grid-template-columns:1fr 340px;gap:20px;margin-top:20px" class="home-cols">
+    <div>
+      <!-- 今日任务 -->
+      <div class="card card-pad" id="task-card"></div>
+      <!-- 推荐书单 -->
+      <div class="card card-pad mt-20" id="rec-card"></div>
+    </div>
+    <div>
+      <!-- 动态计划 -->
+      <div class="card card-pad" id="plan-card"></div>
+      <!-- 今日思辨题 -->
+      <div class="card card-pad mt-20" id="think-card"></div>
+      <!-- 对比阅读 -->
+      <div class="card card-pad mt-20" id="compare-card"></div>
+    </div>
+  </div>
+</div>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script>
+(function () {
+  if (!UI.guard('student')) return;
+  var st = Store.student();
+  var book = Store.book('luotuoxiangzi');
+  var prog = Store.progressOf('luotuoxiangzi');
+  var hour = new Date().getHours();
+  var greet = hour < 6 ? '夜深了' : hour < 11 ? '早上好' : hour < 14 ? '中午好' : hour < 18 ? '下午好' : '晚上好';
+
+  // 页头
+  document.getElementById('head').innerHTML = UI.pageHead(
+    greet + '，' + Store.user().name,
+    '连续打卡 ' + st.streak + ' 天 · 今天也读一点，就比昨天更接近' ,
+    '<span class="tag tag-accent" style="margin-left:12px">' + UI.icon('fire', 13) + ' 已连续 ' + st.streak + ' 天</span>'
+  );
+  UI.topbar('home', { base: '../' });
+
+  // 继续阅读卡
+  var todayMin = st.minutesWeek[6];
+  document.getElementById('continue-card').innerHTML =
+    '<div class="flex gap-20 items-center" style="flex-wrap:wrap">' +
+    '<img src="../' + Store.bookCover(book) + '" alt="' + book.title + '" style="width:86px;height:120px;border-radius:6px;box-shadow:var(--shadow-md);object-fit:cover">' +
+    '<div style="flex:1;min-width:240px">' +
+    '<div class="flex items-center gap-12" style="flex-wrap:wrap">' +
+    '<h2 class="serif" style="font-size:20px">继续阅读 · 《' + book.title + '》</h2>' +
+    '<span class="tag">' + prog.chapter + ' / ' + prog.total + ' 章</span>' +
+    '</div>' +
+    '<p class="text-muted text-sm mt-8">' + book.author + ' 著 · 当前读到 第' + numCn(prog.chapter + 1) + '章' + '</p>' +
+    '<div class="flex items-center gap-16 mt-12" style="flex-wrap:wrap">' +
+    '<div style="flex:1;min-width:180px"><div class="progress"><i style="width:' + prog.pct + '%"></i></div>' +
+    '<div class="progress-label"><span>整本进度 ' + prog.pct + '%</span><span>预计 10月26日 完读</span></div></div>' +
+    '<span class="text-sm text-muted">今日已读 ' + todayMin + ' / 30 分钟</span>' +
+    '</div>' +
+    '</div>' +
+    '<div style="display:flex;flex-direction:column;gap:10px">' +
+    '<a class="btn btn-primary btn-lg" href="reader.html?book=luotuoxiangzi&ch=' + (prog.chapter < prog.total ? prog.chapter : prog.total - 1) + '">' + UI.icon('book', 17) + '继续阅读</a>' +
+    '<button class="btn btn-outline" id="checkin-btn">' + UI.icon('check', 15) + '今日打卡</button>' +
+    '</div></div>';
+
+  document.getElementById('checkin-btn').onclick = function () {
+    if (st.minutesWeek[6] > 0) { UI.toast('今日已打卡，继续保持！', 'success'); return; }
+    Store.addMinutes(30);
+    UI.toast('打卡成功！今日已读 30 分钟', 'success');
+    setTimeout(function () { location.reload(); }, 600);
+  };
+
+  // 今日任务
+  var tasks = [
+    { title: '导读：作者与时代背景', type: '导读', done: true },
+    { title: '第十六至十八章 · 章节测', type: '章节测', done: false },
+    { title: '思辨题：祥子的第一次买车', type: '思辨题', done: false },
+    { title: '拓展阅读：老舍《我这一辈子》', type: '拓展', done: false }
+  ];
+  var doneN = tasks.filter(function (t) { return t.done; }).length;
+  document.getElementById('task-card').innerHTML =
+    '<div class="card-head"><div class="card-title">今日任务 <span class="sub">已完成 ' + doneN + ' / ' + tasks.length + '</span></div>' +
+    '<a class="card-more" href="tasks.html?book=luotuoxiangzi">全部任务 →</a></div>' +
+    tasks.map(function (t, i) {
+      var tag = t.done ? 'tag-success' : (t.type === '思辨题' ? 'tag-accent' : 'tag');
+      return '<div class="list-row"><span class="tag ' + tag + '" style="width:64px;justify-content:center">' + t.type + '</span>' +
+        '<div class="lr-main"><div class="lr-title" style="' + (t.done ? 'color:var(--muted);text-decoration:line-through' : '') + '">' + t.title + '</div></div>' +
+        (t.done
+          ? '<span class="text-success text-sm">' + UI.icon('check', 15) + ' 已完成</span>'
+          : '<a class="btn btn-sm btn-outline" href="tasks.html?book=luotuoxiangzi&t=' + i + '">去做</a>') +
+        '</div>';
+    }).join('');
+
+  // 推荐书单（冷启动：学段+目标+兴趣 → 推荐）
+  var recs = Store.books().filter(function (b) { return ['xiyouji', 'haidiliangwanli', 'kunchongji', 'jianai'].indexOf(b.id) >= 0; });
+  document.getElementById('rec-card').innerHTML =
+    '<div class="card-head"><div class="card-title">为你推荐 <span class="sub">根据你的学段（初中）与兴趣（文学 · 科幻）</span></div>' +
+    '<a class="card-more" href="courses.html">去书库 →</a></div>' +
+    '<div class="grid grid-4">' +
+    recs.map(function (b) {
+      return '<a class="clickable" style="display:block" href="course-detail.html?id=' + b.id + '" onmouseover="this.style.textDecoration=\'none\'">' +
+        '<div style="padding:8px 0;text-align:center">' +
+        '<img src="../' + Store.bookCover(b) + '" alt="' + b.title + '" style="width:96px;height:134px;border-radius:6px;margin:0 auto;box-shadow:var(--shadow-sm)">' +
+        '<div style="font-family:var(--serif);font-weight:600;font-size:14.5px;margin-top:10px;color:var(--ink)">' + b.title + '</div>' +
+        '<div class="text-xs text-muted" style="margin-top:2px">' + b.author + ' · ' + b.genre + '</div>' +
+        '<span class="tag tag-lg tag-blue" style="margin-top:8px">' + b.difficulty + '</span>' +
+        '</div></a>';
+    }).join('') + '</div>';
+
+  // 动态计划（可解释的节奏调整，PRD 4.4.3）
+  var modeMap = { easy: '轻松', standard: '标准', sprint: '冲刺' };
+  var coef = { easy: [0.8, '最近 3 天有 2 天未完成，系统已为你调低目标'], standard: [1.0, '近 7 天完成率 92%，保持当前节奏'], sprint: [1.2, '近 7 天全勤且理解度 ≥ 75，可适当加量'] };
+  var c = coef[st.planMode];
+  var base = 20;
+  var daily = Math.round(base * c[0]);
+  document.getElementById('plan-card').innerHTML =
+    '<div class="card-head"><div class="card-title">动态阅读计划 <span class="sub">节奏可解释 · 随状态自动调整</span></div></div>' +
+    '<div style="background:var(--bg);border-radius:10px;padding:14px 16px;font-size:13px">' +
+    '<div class="flex justify-between"><span class="text-muted">每日目标</span><span class="weight-600" style="font-size:15px">' + daily + ' 页 <span class="text-muted" style="font-weight:400">约 30 分钟</span></span></div>' +
+    '<div class="divider-line" style="margin:10px 0"></div>' +
+    '<div class="text-muted">节奏公式（PRD §9）：</div>' +
+    '<div class="mono-num" style="margin-top:4px;color:var(--primary);font-weight:600">基础 20 页 × 完成率系数 1.0 × 理解度系数 0.9 × 时间系数 ' + (c[0] * 1.0 / 0.9).toFixed(1) + ' ≈ ' + daily + ' 页</div>' +
+    '</div>' +
+    '<p class="text-xs text-muted mt-12" style="line-height:1.8">' + UI.icon('bulb', 13) + ' ' + c[1] + '</p>' +
+    '<div class="pill-tabs mt-12" id="mode-tabs">' +
+    Object.keys(modeMap).map(function (k) {
+      return '<button class="tab' + (st.planMode === k ? ' active' : '') + '" data-mode="' + k + '">' + modeMap[k] + '</button>';
+    }).join('') + '</div>';
+
+  document.querySelectorAll('#mode-tabs .tab').forEach(function (t) {
+    t.onclick = function () {
+      Store.setPlanMode(t.dataset.mode);
+      UI.toast('已切换为「' + modeMap[t.dataset.mode] + '」节奏', 'success');
+      setTimeout(function () { location.reload(); }, 400);
+    };
+  });
+
+  // 今日思辨题（频次控制：每日 ≤ 5 题）
+  var think = Store.thinkList('luotuoxiangzi')[0];
+  document.getElementById('think-card').innerHTML =
+    '<div class="card-head"><div class="card-title">今日思辨 <span class="sub">每日 3—5 题，不打断阅读</span></div>' +
+    '<span class="tag tag-accent">' + think.type + '</span></div>' +
+    '<div style="font-family:var(--serif);font-size:15.5px;line-height:1.7;margin-bottom:10px">' + think.title + '</div>' +
+    '<p class="text-xs text-muted" style="line-height:1.8;margin-bottom:14px">' + UI.icon('spark', 13) + ' ' + think.guide + '</p>' +
+    '<a class="btn btn-accent btn-block" href="tasks.html?book=luotuoxiangzi&t=2">去回答</a>';
+
+  // 对比阅读
+  document.getElementById('compare-card').innerHTML =
+    '<div class="card-head"><div class="card-title">对比阅读</div></div>' +
+    '<div class="flex gap-12 items-center">' +
+    '<img src="../' + Store.bookCover(Store.book('luotuoxiangzi')) + '" style="width:52px;height:73px;border-radius:4px;box-shadow:var(--shadow-sm)">' +
+    '<span class="serif weight-600" style="font-size:15px">骆驼祥子</span>' +
+    '<span class="text-muted" style="font-size:18px">×</span>' +
+    '<img src="../' + Store.bookCover(Store.book('zhaohuaxishi')) + '" style="width:52px;height:73px;border-radius:4px;box-shadow:var(--shadow-sm)">' +
+    '<span class="serif weight-600" style="font-size:15px">朝花夕拾</span>' +
+    '</div>' +
+    '<p class="text-xs text-muted mt-12" style="line-height:1.8">主题线索：<b style="color:var(--ink)">"底层小人物的希望"</b>。两位作家笔下的北平与故乡，藏着怎样的共同叹息？</p>' +
+    '<a class="btn btn-sm btn-outline mt-12" href="coaching.html?topic=compare">' + UI.icon('chat', 14) + '和 AI 陪练聊聊</a>';
+
+  function numCn(n) {
+    var d = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+    if (n < 10) return d[n];
+    if (n < 20) return '十' + (n % 10 ? d[n % 10] : '');
+    return d[Math.floor(n / 10)] + '十' + (n % 10 ? d[n % 10] : '');
+  }
+})();
+</script>
+</body>
+</html>

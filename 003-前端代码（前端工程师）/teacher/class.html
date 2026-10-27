@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>班级详情 · 伴读智汇</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+</head>
+<body>
+<div class="page">
+  <div id="head"></div>
+
+  <!-- 学情概览 -->
+  <div class="stat-grid" id="stat-grid"></div>
+
+  <!-- 图表区 -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px" class="grid-2" id="charts">
+    <div class="card card-pad">
+      <div class="card-head"><div class="card-title">学生完成率 <span class="sub">共读书目 · 前 12 名</span></div>
+        <select class="select" style="width:auto;height:32px;font-size:12.5px;padding:0 8px" onchange="UI.toast('视图已切换（演示）','success')">
+          <option>全部学生</option><option>需干预</option>
+        </select></div>
+      <div id="chart-completion"></div>
+    </div>
+    <div class="card card-pad">
+      <div class="card-head"><div class="card-title">历次任务平均分</div></div>
+      <div id="chart-scores"></div>
+    </div>
+    <div class="card card-pad">
+      <div class="card-head"><div class="card-title">班级活跃度 <span class="sub">阅读 vs 讨论（次/周）</span></div></div>
+      <div id="chart-activity"></div>
+    </div>
+    <div class="card card-pad">
+      <div class="card-head"><div class="card-title">章节完成率热力图 <span class="sub">示例学生 × 章节</span></div></div>
+      <div id="chart-heat"></div>
+    </div>
+  </div>
+
+  <!-- 任务列表 -->
+  <div class="card mt-20">
+    <div class="card-pad" style="padding-bottom:8px">
+      <div class="card-head" style="margin-bottom:0"><div class="card-title">阅读任务</div>
+        <a class="btn btn-sm btn-primary" href="task-editor.html">＋ 布置任务</a></div>
+    </div>
+    <div style="padding:0 24px 20px" id="task-list"></div>
+  </div>
+
+  <!-- 学生列表 -->
+  <div class="card mt-20">
+    <div class="card-pad" style="padding-bottom:8px">
+      <div class="card-head" style="margin-bottom:0"><div class="card-title">学生列表 <span class="sub">42 人 · 展示前 12 名</span></div></div>
+    </div>
+    <div style="padding:0 24px 20px;overflow-x:auto"><table class="tbl" id="stu-table"></table></div>
+  </div>
+
+  <!-- 评阅 -->
+  <div class="card mt-20" id="reviews">
+    <div class="card-pad" style="padding-bottom:8px">
+      <div class="card-head" style="margin-bottom:0"><div class="card-title">作业评阅</div></div>
+    </div>
+    <div style="padding:0 24px 24px" id="review-list"></div>
+  </div>
+</div>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script src="../assets/js/charts.js"></script>
+<script>
+(function () {
+  if (!UI.guard('teacher')) return;
+  UI.topbar('class', { base: '../' });
+  var cls = Store.classById('class-1');
+
+  document.getElementById('head').innerHTML = UI.pageHead(cls.name, '共读《骆驼祥子》 · 42 名学生 · 邀请码 ' + cls.inviteCode);
+
+  /* ---------- 概览瓦片 ---------- */
+  var tiles = [
+    { label: '任务完成率', value: Math.round(cls.tasks.reduce(function (a, x) { return a + x.submitted / x.total; }, 0) / cls.tasks.length * 100) + '<small>%</small>', note: '3 个进行中任务' },
+    { label: '平均得分', value: '80<small> 分</small>', note: '较上次任务 +2 分' },
+    { label: '活跃学生', value: '31 <small>人</small>', note: '本周阅读 + 讨论' },
+    { label: '需干预学生', value: '4 <small>人</small>', note: '2 人需提醒 · 2 人需个别辅导' }
+  ];
+  document.getElementById('stat-grid').innerHTML = tiles.map(function (t) {
+    return '<div class="card stat-tile"><div class="st-label">' + t.label + '</div>' +
+      '<div class="st-value">' + t.value + '</div>' +
+      '<div class="st-note">' + t.note + '</div></div>';
+  }).join('');
+
+  /* ---------- 图表 ---------- */
+  // 1. 完成率（横向柱，单序列）
+  Charts.barH(document.getElementById('chart-completion'), {
+    data: cls.students.map(function (s) {
+      return { label: s.name, value: s.completion, meta: s.status === '在轨' ? '在轨' : '需关注' };
+    }),
+    unit: '%', aria: '学生阅读完成率横向柱状图'
+  });
+
+  // 2. 平均分（折线，单序列）
+  var scoreKeys = Object.keys(cls.scores);
+  Charts.line(document.getElementById('chart-scores'), {
+    labels: scoreKeys,
+    series: [{ name: '班级平均分', color: 'series1', data: scoreKeys.map(function (k) { return cls.scores[k]; }) }],
+    unit: '分', aria: '历次任务班级平均分折线图'
+  });
+
+  // 3. 活跃度（双序列 → 已验证配色 + 图例）
+  Charts.line(document.getElementById('chart-activity'), {
+    labels: cls.activity.weeks,
+    series: [
+      { name: '阅读活跃', color: 'blue', data: cls.activity.read },
+      { name: '讨论发言', color: 'orange', data: cls.activity.discuss }
+    ],
+    unit: '次', aria: '班级活跃度双序列折线图'
+  });
+
+  // 4. 章节完成率热力图（顺序色阶）
+  var heatRows = cls.students.slice(0, 8).map(function (s) { return s.name; });
+  var heatCols = [];
+  for (var c = 1; c <= 12; c++) heatCols.push('第' + c + '章');
+  var heatVals = heatRows.map(function (_, ri) {
+    return heatCols.map(function (_, ci) {
+      var base = cls.students[ri].completion;
+      var v = base - ci * 4 - (ri % 3) * 3 + ((ri * 7 + ci * 5) % 9);
+      return Math.max(0.08, Math.min(1, v / 100));
+    });
+  });
+  Charts.heatmap(document.getElementById('chart-heat'), {
+    rows: heatRows, cols: heatCols, values: heatVals, aria: '章节完成率热力图'
+  });
+
+  /* ---------- 任务列表 ---------- */
+  document.getElementById('task-list').innerHTML = cls.tasks.map(function (t) {
+    var pct = Math.round(t.submitted / t.total * 100);
+    var urgent = t.deadline <= '10-23';
+    return '<div class="list-row">' +
+      '<span class="tag ' + (t.type === '思辨题' ? 'tag-accent' : t.type === '章节测' ? 'tag-blue' : 'tag') + '" style="width:64px;justify-content:center">' + t.type + '</span>' +
+      '<div class="lr-main"><div class="lr-title">' + t.title + '</div>' +
+      '<div class="lr-sub">截止 ' + t.deadline + (urgent ? ' · <span style="color:var(--warning)">临近截止</span>' : '') + '</div></div>' +
+      '<div style="width:140px"><div class="progress thin"><i style="width:' + pct + '%"></i></div>' +
+      '<div class="progress-label"><span>' + t.submitted + ' / ' + t.total + ' 已提交</span></div></div>' +
+      '<button class="btn btn-sm btn-outline" onclick="UI.remind()">提醒未交</button>' +
+      '</div>';
+  }).join('');
+
+  /* ---------- 学生表格 ---------- */
+  var stuRows = cls.students.map(function (s) {
+    var statusTag = s.status === '在轨' ? 'tag-success' : s.status === '需提醒' ? 'tag-warning' : 'tag-error';
+    return '<tr>' +
+      '<td><div class="flex items-center gap-8"><span class="avatar" style="width:28px;height:28px;font-size:13px">' + s.name[0] + '</span>' + s.name + '</div></td>' +
+      '<td class="num">' + s.completion + '%</td>' +
+      '<td class="num">' + s.score + '</td>' +
+      '<td><span class="tag ' + (s.weak === '思辨力' ? 'tag-accent' : s.weak === '文本证据' ? 'tag-blue' : 'tag') + '">' + s.weak + '</span></td>' +
+      '<td><span class="tag ' + statusTag + '">' + s.status + '</span></td>' +
+      '<td><button class="btn btn-sm btn-ghost" onclick="UI.intervene(\'' + s.name + '\')">干预</button></td>' +
+      '</tr>';
+  }).join('');
+  document.getElementById('stu-table').innerHTML =
+    '<tr><th>学生</th><th>完成率</th><th>平均分</th><th>弱项</th><th>状态</th><th>操作</th></tr>' + stuRows +
+    '<tr><td colspan="6" class="text-xs" style="color:var(--muted)">其余 30 名学生：平均完成率 ' + cls.restAvg.completion + '% · 平均分 ' + cls.restAvg.score + ' · 平均活跃 ' + cls.restAvg.active + ' 次/周</td></tr>';
+
+  /* ---------- 评阅 ---------- */
+  document.getElementById('review-list').innerHTML = cls.reviews.map(function (r) {
+    return '<div class="list-row">' +
+      '<span class="avatar">' + r.stu[0] + '</span>' +
+      '<div class="lr-main"><div class="lr-title">' + r.stu + ' · ' + r.task + '</div>' +
+      '<div class="lr-sub">' + r.submittedAt + ' · ' + r.preview.slice(0, 40) + '…</div></div>' +
+      (r.status === '已评阅'
+        ? '<span class="tag tag-success">已评阅 ' + r.score + ' 分</span>'
+        : '<button class="btn btn-sm btn-primary" onclick="UI.grade(\'' + r.id + '\',\'' + r.stu + '\')">评阅</button>') +
+      '</div>';
+  }).join('');
+
+  window.UI = Object.assign(window.UI || {}, {
+    remind: function () { UI.toast('已向未提交学生发送提醒（演示）', 'success'); },
+    intervene: function (name) {
+      UI.modal('<h3>精准干预 · ' + UI.esc(name) + '</h3><p class="modal-sub">选择干预方式（教师端减负：一键动作）</p>' +
+        '<div style="display:flex;flex-direction:column;gap:8px">' +
+        '<button class="btn btn-outline" style="justify-content:flex-start" onclick="UI.doIntervene(\'' + name + '\',\'提醒\')">🔔 发送阅读提醒</button>' +
+        '<button class="btn btn-outline" style="justify-content:flex-start" onclick="UI.doIntervene(\'' + name + '\',\'推荐\')">📚 推荐基础难度拓展材料</button>' +
+        '<button class="btn btn-outline" style="justify-content:flex-start" onclick="UI.doIntervene(\'' + name + '\',\'辅导\')">🎯 安排个别辅导（1 对 1）</button></div>',
+        [{ label: '关闭', value: null }]);
+    },
+    doIntervene: function (name, act) {
+      UI.modal('<h3>已完成</h3><p class="modal-sub">已为 <b>' + UI.esc(name) + '</b> 执行「' + act + '」，学生端将收到消息通知。（演示）</p>',
+        [{ label: '知道了', value: null, primary: true }]);
+    },
+    grade: function (id, stu) {
+      UI.modal('<h3>评阅 · ' + UI.esc(stu) + '</h3><p class="modal-sub">阅读全文后可评分、写评语、推荐优秀作业</p>' +
+        '<div class="field"><label>评分（0-100）</label><div class="chip-group">' +
+        [95, 90, 85, 80, 75, 70].map(function (s) { return '<button class="chip" data-s="' + s + '" onclick="UI.pickScore(this)">' + s + '</button>'; }).join('') +
+        '</div></div>' +
+        '<div class="field"><label>评语</label><textarea class="textarea" id="grade-cmt" placeholder="写评语…"></textarea></div>' +
+        '<label class="check-row"><input type="checkbox" checked> 推荐为优秀作业（班级展示）</label>',
+        [
+          { label: '取消', value: false },
+          { label: '提交评阅', value: true, primary: true }
+        ]).then(function (v) {
+        if (!v) return;
+        Store.gradeReview(id, 90, document.getElementById('grade-cmt').value || '观点清晰，证据引用到位，继续保持！');
+        UI.toast('评阅已提交，学生将收到通知', 'success');
+        setTimeout(function () { location.reload(); }, 500);
+      });
+    },
+    pickScore: function (btn) {
+      document.querySelectorAll('.chip[data-s]').forEach(function (c) { c.classList.remove('selected'); });
+      btn.classList.add('selected');
+    }
+  });
+})();
+</script>
+</body>
+</html>

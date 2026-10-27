@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>阅读器 · 伴读智汇</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<style>
+/* 阅读器三种阅读主题（PRD 4.2.3：日间/护眼/夜间） */
+.reader-stage[data-rt="day"] { --reader-bg: #F7F3EA; --reader-ink: #2B2B2B; --reader-muted: #8A8578; }
+.reader-stage[data-rt="eye"] { --reader-bg: #EAF0E0; --reader-ink: #33382B; --reader-muted: #7A8070; }
+.reader-stage[data-rt="night"] { --reader-bg: #16181E; --reader-ink: #D8D5CC; --reader-muted: #8A8D96; }
+.reader-stage[data-rt="night"] .reader-page .rp-note { color: #8A8D96; }
+.reader-stage[data-rt="night"] .reader-mark { background: rgba(241,180,100,.28); border-bottom-color: rgba(241,180,100,.5); }
+</style>
+</head>
+<body>
+<div class="reader-shell">
+  <!-- 顶栏 -->
+  <div class="reader-top">
+    <button class="icon-btn" title="退出阅读" onclick="location.href='home.html'"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5m0 0 6-6m-6 6 6 6"/></svg></button>
+    <div style="min-width:0">
+      <div class="rt-title" id="rt-title"></div>
+      <div class="rt-sub" id="rt-sub"></div>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+      <span class="tag tag-plain" id="timer">00:00</span>
+      <button class="icon-btn" title="目录/陪练" onclick="UI.togglePanel('toc')"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></button>
+      <button class="icon-btn" title="AI 陪练" onclick="UI.togglePanel('coach')"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H4l2.2-2.6A8 8 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg></button>
+      <span style="width:1px;height:22px;background:var(--divider)"></span>
+      <button class="icon-btn" title="减小字号" onclick="UI.fontSize(-1)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M6 4h12v3M8.5 4 4 12l4.5 8H6v3h12v-3h-2.5L20 12l-4.5-8H18V1H6v3z" opacity=".4"/></svg></button>
+      <button class="icon-btn" title="增大字号" onclick="UI.fontSize(1)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5v14"/><path d="M6 4h12v3M8.5 4 4 12l4.5 8H6v3h12v-3h-2.5L20 12l-4.5-8H18V1H6v3z" opacity=".4"/></svg></button>
+      <button class="icon-btn" title="切换阅读主题" onclick="UI.cycleTheme()"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13.5A8 8 0 1 1 10.5 4 6.5 6.5 0 0 0 20 13.5z"/></svg></button>
+    </div>
+  </div>
+
+  <div class="reader-body">
+    <!-- 正文 -->
+    <div class="reader-stage" id="stage" data-rt="day">
+      <div class="reader-page" id="page"></div>
+    </div>
+
+    <!-- 侧栏：目录 / AI 陪练 -->
+    <aside class="reader-panel hidden" id="panel">
+      <div class="rp-head">
+        <div class="pill-tabs">
+          <button class="tab active" data-p="toc">目录</button>
+          <button class="tab" data-p="coach">AI 陪练</button>
+        </div>
+        <button class="icon-btn" onclick="UI.closePanel()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
+      <div id="pane-toc"></div>
+      <div id="pane-coach" style="display:none;flex-direction:column;flex:1;min-height:0">
+        <div class="chat-list" id="coach-msgs"></div>
+        <div class="chat-input">
+          <input class="input" id="coach-input" placeholder="向 AI 陪练提问，如：祥子为什么那么想买车？" style="flex:1">
+          <button class="btn btn-primary send" onclick="UI.askCoach()">发送</button>
+        </div>
+        <div style="padding:0 14px 14px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="chip" style="height:30px;padding:0 12px;font-size:12px" onclick="UI.quickAsk(this)">祥子为什么那么想买车？</button>
+          <button class="chip" style="height:30px;padding:0 12px;font-size:12px" onclick="UI.quickAsk(this)">这段写得怎么样？</button>
+          <button class="chip" style="height:30px;padding:0 12px;font-size:12px" onclick="UI.quickAsk(this)">总结本章</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 底栏 -->
+  <div class="reader-bottom">
+    <button class="icon-btn" title="上一章" onclick="UI.gotoCh(-1)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5-7 7 7 7"/></svg></button>
+    <div class="rb-progress">
+      <span class="rb-num" id="rb-num"></span>
+      <div class="progress"><i id="rb-bar" style="width:0%"></i></div>
+      <span class="rb-num" id="rb-pct"></span>
+    </div>
+    <button class="icon-btn" title="添加书签" id="bm-btn" onclick="UI.toggleBookmark()"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4V3z"/></svg></button>
+    <button class="icon-btn" title="下一章" onclick="UI.gotoCh(1)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg></button>
+  </div>
+</div>
+
+<!-- 划线工具条 -->
+<div class="mark-tools hide" id="mark-tools">
+  <button title="划线" onclick="UI.doMark()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 15l8-8"/><path d="M8 8h8v8"/></svg></button>
+  <button title="批注" onclick="UI.doAnnotate()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 20 4.5-1L20 7.5 16.5 4 5 15.5 4 20z"/><path d="m14.5 6 3.5 3.5"/></svg></button>
+  <button title="摘抄" onclick="UI.doQuote()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4a2 2 0 0 0-2-2H6.5A2.5 2.5 0 0 0 4 4.5v15zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg></button>
+</div>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script>
+(function () {
+  if (!UI.guard('student')) return;
+  var params = new URLSearchParams(location.search);
+  var bookId = params.get('book') || 'luotuoxiangzi';
+  var book = Store.book(bookId);
+  var ch = Math.min(parseInt(params.get('ch') || '0', 10) || 0, book.chapterNames.length - 1);
+  var total = book.chapterNames.length;
+  var settings = Store.settings();
+
+  var S = {
+    theme: settings.readerTheme || 'day',
+    size: settings.readerSize || 17,
+    panel: null,
+    seconds: 0,
+    readAtBottom: false
+  };
+
+  /* ---------- 渲染正文 ---------- */
+  function render() {
+    document.getElementById('rt-title').textContent = '《' + book.title + '》';
+    document.getElementById('rt-sub').textContent = book.chapterNames[ch] + ' · ' + (ch + 1) + ' / ' + total;
+    var t = Store.chapterText(bookId, ch);
+    var marks = Store.highlights(bookId).filter(function (h) { return h.ch === ch; });
+    var html = '<h2>' + book.chapterNames[ch] + '</h2>' +
+      '<div class="rp-meta">' + book.author + ' 著 · 约 ' + book.chapterNames[ch].words + ' 字' +
+      (t.isExcerpt ? ' · 节选' : ' · 本章梗概（演示）') + '</div>';
+    t.paragraphs.forEach(function (p) {
+      var m = marks.find(function (x) { return p.indexOf(x.start) === 0; });
+      html += '<p class="' + (m ? 'reader-mark' : '') + '">' + p + '</p>';
+    });
+    if (!t.isExcerpt) {
+      html += '<p class="rp-note">注：本章为演示梗概。正式版本将收录正版授权的完整文本。</p>';
+    }
+    document.getElementById('page').innerHTML = html;
+    document.getElementById('rb-num').textContent = book.chapterNames[ch];
+    var pct = Math.round((ch + 1) / total * 100);
+    document.getElementById('rb-bar').style.width = pct + '%';
+    document.getElementById('rb-pct').textContent = pct + '% · ' + (ch + 1) + ' / ' + total;
+    document.getElementById('bm-btn').style.color = Store.bookmarks(bookId).indexOf(ch) >= 0 ? 'var(--accent-deep)' : '';
+    document.querySelectorAll('.reader-mark').forEach(function (el) {
+      el.onclick = function (e) {
+        e.stopPropagation();
+        var txt = el.textContent;
+        var h = Store.highlights(bookId).find(function (x) { return txt.indexOf(x.start) === 0; });
+        UI.modal('<h3>我的划线</h3><p class="modal-sub">' + UI.esc(txt) + '</p>' +
+          '<div class="field"><label>批注</label><div class="text-sm" style="line-height:1.8">' + UI.esc(h ? h.text : '') + '</div></div>',
+          [{ label: '关闭', value: null, primary: true }]);
+      };
+    });
+    stage.scrollTop = 0;
+    S.readAtBottom = false;
+    renderToc();
+  }
+
+  /* ---------- 目录 ---------- */
+  function renderToc() {
+    var readList = Store.chapterReadList(bookId);
+    var bm = Store.bookmarks(bookId);
+    document.getElementById('pane-toc').innerHTML = book.chapterNames.map(function (t, i) {
+      var read = readList.indexOf(i) >= 0;
+      return '<div class="rp-toc-item' + (i === ch ? ' now' : '') + '" onclick="UI.gotoChAbs(' + i + ')">' +
+        '<span class="chk ' + (read ? '' : 'pending') + '"></span>' +
+        '<span style="flex:1">' + t + '</span>' +
+        (bm.indexOf(i) >= 0 ? '<span style="color:var(--accent-deep);font-size:12px">🔖</span>' : '') +
+        (read ? '<span class="text-xs" style="color:var(--success)">已读</span>' : '') +
+        '</div>';
+    }).join('');
+  }
+
+  /* ---------- 计时（阅读计时 + 进度同步） ---------- */
+  setInterval(function () {
+    S.seconds++;
+    var m = Math.floor(S.seconds / 60), s = S.seconds % 60;
+    document.getElementById('timer').textContent =
+      (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    if (S.seconds > 0 && S.seconds % 60 === 0) Store.addMinutes(1);
+  }, 1000);
+
+  /* ---------- 章节跳转 ---------- */
+  function gotoCh(d) {
+    if (ch + d < 0 || ch + d >= total) { UI.toast(d > 0 ? '已经是最后一章了' : '已经是第一章了', 'warning'); return; }
+    markCurrent();
+    ch += d;
+    render();
+    Store.markChapterRead(bookId, ch);
+  }
+  function gotoChAbs(i) {
+    markCurrent();
+    ch = i;
+    render();
+    Store.markChapterRead(bookId, ch);
+    UI.closePanel();
+  }
+  function markCurrent() { if (S.readAtBottom) Store.markChapterRead(bookId, ch); }
+
+  /* ---------- 滚动到底 → 标记已读 ---------- */
+  var stage = document.getElementById('stage');
+  stage.addEventListener('scroll', function () {
+    var el = document.getElementById('page');
+    if (el && stage.scrollTop + stage.clientHeight >= el.scrollHeight - 120 && !S.readAtBottom) {
+      S.readAtBottom = true;
+      Store.markChapterRead(bookId, ch);
+      renderToc();
+      UI.toast('本章已读完，进度已同步', 'success');
+    }
+  });
+
+  /* ---------- 文本选择 → 划线工具条 ---------- */
+  document.addEventListener('mouseup', function (e) {
+    var sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) { hideTools(); return; }
+    var range = sel.getRangeAt(0);
+    if (!document.getElementById('page').contains(range.commonAncestorContainer)) { hideTools(); return; }
+    var rect = range.getBoundingClientRect();
+    var tools = document.getElementById('mark-tools');
+    tools.classList.remove('hide');
+    tools.style.left = Math.max(60, rect.left + rect.width / 2) + 'px';
+    tools.style.top = Math.max(64, rect.top - 46) + 'px';
+    tools._sel = sel.toString().trim().slice(0, 120);
+    tools._ch = ch;
+  });
+  document.addEventListener('mousedown', function (e) {
+    if (!e.target.closest('#mark-tools')) hideTools();
+  });
+  function hideTools() { document.getElementById('mark-tools').classList.add('hide'); }
+
+  /* ---------- 查词（双击） ---------- */
+  var DICT = {
+    '车口': '旧时北平人力车夫揽客的固定地点，多在大宅门或热闹街口。',
+    '洋车': '即黄包车、人力车，旧时载客工具，车夫以此为生。',
+    '包月': '按月包租车辆，或按月受雇于固定雇主拉车。',
+    '百草园': '鲁迅绍兴故居后的菜园，是《从百草园到三味书屋》中的童年乐园。',
+    '三味书屋': '鲁迅少年时读书的私塾，在绍兴城内。'
+  };
+  document.getElementById('page').addEventListener('dblclick', function () {
+    var w = window.getSelection().toString().trim();
+    if (w && w.length <= 4) {
+      var def = DICT[w] || '（演示）这是“' + w + '”的词条解释。正式版将接入权威词典与百科。';
+      UI.modal('<h3>查词 · ' + UI.esc(w) + '</h3><p class="modal-sub" style="line-height:1.9">' + def + '</p>',
+        [{ label: '关闭', value: null, primary: true }]);
+    }
+  });
+
+  /* ---------- AI 陪练（嵌入，苏格拉底式追问） ---------- */
+  function coachReply(q) {
+    var replies = [
+      { kw: '为什么', r: '好问题。我们先拆两层：表层是"想拥有一辆自己的车"的执念，深层呢？请你回到原文，找一找写他第一次买到车时心情的句子——那种心情，可能就是他拼命的原因。你找到了哪一句？' },
+      { kw: '写得怎么样', r: '我们可以从三个角度读这段：一，动词的节奏（"跑起来风响"）；二，比喻的情绪（"像一只小兽"——野性、生命力，也暗示了被驯服的命运）；三，长短句的变化。你觉得哪个角度最打动你？' },
+      { kw: '总结', r: '本章要点：祥子经历了买车、丢车、卖骆驼三件事，情绪在希望与失落之间起伏。核心线索是"车"——它是祥子全部价值的载体。你同意吗？有没有不同看法？' },
+      { kw: '骆驼', r: '骆驼是情节道具，也是外号。想想看：祥子牵走骆驼换钱，是机智还是偷窃？作者让这个外号跟了他一辈子，说明什么？' },
+      { kw: '祥子', r: '祥子是个很"要强"的人。他相信力气能换一切。你可以想一想：小说里还有谁和祥子形成了对照？这种对照说明了什么？' }
+    ];
+    for (var i = 0; i < replies.length; i++) {
+      if (q.indexOf(replies[i].kw) >= 0) return replies[i].r;
+    }
+    return '这个问题值得想一想。我先不直接回答——你能引用原文中的一句话，作为你思考这个问题的证据吗？找到后，我们再一起往下挖。';
+  }
+  function renderCoach() {
+    var log = Store.coachLog();
+    var box = document.getElementById('coach-msgs');
+    if (!box) return;
+    box.innerHTML = log.length
+      ? log.map(function (m) {
+        return m.role === 'ai'
+          ? '<div class="msg ai"><div class="m-av">伴</div><div><div class="m-bubble">' + UI.esc(m.text) + '</div><div class="m-meta">AI 陪练 · ' + m.time + '</div></div></div>'
+          : '<div class="msg me"><div class="m-av">我</div><div><div class="m-bubble">' + UI.esc(m.text) + '</div><div class="m-meta">' + m.time + '</div></div></div>';
+      }).join('')
+      : '<div class="msg ai"><div class="m-av">伴</div><div><div class="m-bubble">我是你的 AI 陪练。读书时遇到任何疑问，都可以随时问我。我不会直接给答案，而是陪你一起想。</div><div class="m-meta">AI 陪练</div></div></div>';
+    box.scrollTop = box.scrollHeight;
+  }
+
+  /* ---------- 动作 ---------- */
+  window.UI = Object.assign(window.UI || {}, {
+    togglePanel: function (p) {
+      var panel = document.getElementById('panel');
+      var isSame = S.panel === p && !panel.classList.contains('hidden');
+      if (isSame) { UI.closePanel(); return; }
+      S.panel = p;
+      panel.classList.remove('hidden');
+      document.querySelectorAll('.rp-head .tab').forEach(function (t) {
+        t.classList.toggle('active', t.dataset.p === p);
+      });
+      document.getElementById('pane-toc').style.display = p === 'toc' ? '' : 'none';
+      document.getElementById('pane-coach').style.display = p === 'coach' ? 'flex' : 'none';
+      if (p === 'coach') renderCoach();
+    },
+    closePanel: function () {
+      S.panel = null;
+      document.getElementById('panel').classList.add('hidden');
+    },
+    fontSize: function (d) {
+      S.size = Math.max(14, Math.min(22, S.size + d));
+      Store.setSetting('readerSize', S.size);
+      document.documentElement.style.setProperty('--reader-size', S.size + 'px');
+      UI.toast('字号 ' + S.size + 'px', 'success');
+    },
+    cycleTheme: function () {
+      var order = ['day', 'eye', 'night'];
+      var names = { day: '日间', eye: '护眼', night: '夜间' };
+      S.theme = order[(order.indexOf(S.theme) + 1) % 3];
+      Store.setSetting('readerTheme', S.theme);
+      stage.setAttribute('data-rt', S.theme);
+      UI.toast('已切换' + names[S.theme] + '模式', 'success');
+    },
+    gotoCh: gotoCh,
+    gotoChAbs: gotoChAbs,
+    toggleBookmark: function () {
+      var on = Store.toggleBookmark(bookId, ch);
+      UI.toast(on ? '已添加书签' : '已移除书签', 'success');
+      renderToc();
+      document.getElementById('bm-btn').style.color = on ? 'var(--accent-deep)' : '';
+    },
+    doMark: function () {
+      var tools = document.getElementById('mark-tools');
+      Store.addHighlight(bookId, tools._ch, tools._sel);
+      UI.toast('已划线，可在「我的 → 笔记」查看', 'success');
+      hideTools();
+      render();
+    },
+    doAnnotate: function () {
+      var tools = document.getElementById('mark-tools');
+      UI.modal('<h3>添加批注</h3><p class="modal-sub" style="line-height:1.8">“' + UI.esc(tools._sel) + '”</p>' +
+        '<div class="field"><textarea class="textarea" id="anno-input" placeholder="写下你的想法…"></textarea></div>',
+        [
+          { label: '取消', value: false },
+          { label: '保存批注', value: true, primary: true }
+        ]).then(function (v) {
+        if (!v) return;
+        var text = document.getElementById('anno-input').value.trim();
+        if (!text) { UI.toast('批注内容不能为空', 'warning'); return; }
+        Store.addNote(bookId, tools._ch, tools._sel.slice(0, 30), text);
+        Store.addHighlight(bookId, tools._ch, tools._sel);
+        UI.toast('批注已保存', 'success');
+        hideTools();
+        render();
+      });
+    },
+    doQuote: function () {
+      var tools = document.getElementById('mark-tools');
+      Store.addNote(bookId, tools._ch, tools._sel.slice(0, 30), '摘抄自《' + book.title + '》' + book.chapterNames[tools._ch]);
+      UI.toast('已摘抄到笔记', 'success');
+      hideTools();
+    },
+    askCoach: function () {
+      var input = document.getElementById('coach-input');
+      var q = input.value.trim();
+      if (!q) return;
+      Store.appendCoach('me', q);
+      input.value = '';
+      renderCoach();
+      setTimeout(function () {
+        Store.appendCoach('ai', coachReply(q));
+        renderCoach();
+      }, 600);
+    },
+    quickAsk: function (btn) {
+      document.getElementById('coach-input').value = btn.textContent;
+      UI.askCoach();
+    }
+  });
+
+  /* ---------- 退出时同步 ---------- */
+  window.addEventListener('beforeunload', function () {
+    markCurrent();
+    if (S.seconds >= 30) Store.addMinutes(Math.max(1, Math.round(S.seconds / 60)));
+  });
+
+  /* ---------- 初始化 ---------- */
+  document.documentElement.style.setProperty('--reader-size', S.size + 'px');
+  stage.setAttribute('data-rt', S.theme);
+  render();
+})();
+</script>
+</body>
+</html>

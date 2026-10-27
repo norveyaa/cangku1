@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>403 无权访问 · 伴读智汇</title>
+<link rel="stylesheet" href="assets/css/base.css">
+</head>
+<body>
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px">
+  <div class="card" style="max-width:440px;width:100%;text-align:center;padding:56px 40px">
+    <div style="font-family:var(--serif);font-size:64px;font-weight:700;color:var(--primary);line-height:1">403</div>
+    <h2 class="serif" style="font-size:20px;margin:16px 0 8px">该页面仅限特定角色访问</h2>
+    <p class="text-muted text-sm" id="reason">当前账号没有访问此页面的权限（PRD §8 路由守卫）。</p>
+    <div class="flex gap-12 justify-between mt-24" style="justify-content:center">
+      <button class="btn btn-outline" onclick="location.href='index.html'">返回登录</button>
+      <button class="btn btn-primary" id="go-home">回到我的首页</button>
+    </div>
+  </div>
+</div>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/ui.js"></script>
+<script>
+(function () {
+  var p = new URLSearchParams(location.search);
+  var want = p.get('want'), from = p.get('from');
+  if (want || from) {
+    var map = { student: '学生端', teacher: '教师工作台' };
+    document.getElementById('reason').textContent =
+      '你想访问的页面（' + (from || '') + '）属于' + (map[want] || want || '') + '专属页面。';
+  }
+  var u = Store.user();
+  var home = u && u.role === 'teacher' ? 'teacher/dashboard.html' : 'student/home.html';
+  document.getElementById('go-home').onclick = function () { location.href = home; };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设置 · 伴读智汇</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+</head>
+<body>
+<div class="page" style="max-width:760px">
+  <div id="head"></div>
+
+  <div class="card card-pad">
+    <div class="card-head"><div class="card-title">个人资料与阅读目标</div></div>
+    <div class="field">
+      <label>昵称</label>
+      <input class="input" id="s-name" value="">
+    </div>
+    <div class="field">
+      <label>学段 / 年级</label>
+      <div class="input-group">
+        <select class="select" id="s-stage">
+          <option>小学</option><option>初中</option><option>高中</option><option>高校</option>
+        </select>
+        <select class="select" id="s-grade">
+          <option>七年级</option><option>八年级</option><option>九年级</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>学校</label>
+      <input class="input" id="s-school" value="">
+    </div>
+    <div class="field">
+      <label>阅读目标</label>
+      <div class="chip-group" id="s-goals">
+        <button type="button" class="chip" data-v="应试提分">应试提分</button>
+        <button type="button" class="chip" data-v="兴趣拓展">兴趣拓展</button>
+        <button type="button" class="chip" data-v="思辨写作">思辨写作</button>
+        <button type="button" class="chip" data-v="通识素养">通识素养</button>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="UI.saveProfile()">保存资料</button>
+  </div>
+
+  <div class="card card-pad mt-20">
+    <div class="card-head"><div class="card-title">显示与护眼</div></div>
+    <div class="switch-row">
+      <div class="sw-label">夜间模式<small>暗色界面，夜间使用更舒适（PRD 5.2 暗色令牌）</small></div>
+      <button class="switch" id="sw-theme" onclick="UI.flipTheme(this)"></button>
+    </div>
+    <div class="switch-row">
+      <div class="sw-label">阅读器默认主题<small>日间 / 护眼 / 夜间</small></div>
+      <select class="select" style="width:150px" id="s-rt" onchange="Store.setSetting('readerTheme',this.value);UI.toast('已保存','success')">
+        <option value="day">日间</option>
+        <option value="eye">护眼</option>
+        <option value="night">夜间</option>
+      </select>
+    </div>
+    <div class="switch-row">
+      <div class="sw-label">阅读器默认字号</div>
+      <select class="select" style="width:150px" id="s-rs" onchange="Store.setSetting('readerSize',+this.value);UI.toast('已保存','success')">
+        <option value="15">15px</option>
+        <option value="17">17px</option>
+        <option value="19">19px</option>
+        <option value="21">21px</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card card-pad mt-20">
+    <div class="card-head"><div class="card-title">通知设置</div></div>
+    <div class="switch-row">
+      <div class="sw-label">任务提醒<small>新任务发布、截止时间临近时提醒</small></div>
+      <button class="switch on" id="sw-task" onclick="this.classList.toggle('on')"></button>
+    </div>
+    <div class="switch-row">
+      <div class="sw-label">教师评价通知<small>作业被评阅、被选为优秀作业时提醒</small></div>
+      <button class="switch on" id="sw-review" onclick="this.classList.toggle('on')"></button>
+    </div>
+    <div class="switch-row">
+      <div class="sw-label">免打扰时段<small>21:30 — 次日 7:00 不推送（可配置，PRD 交互逻辑 8）</small></div>
+      <button class="switch" onclick="this.classList.toggle('on')"></button>
+    </div>
+  </div>
+
+  <div class="card card-pad mt-20">
+    <div class="card-head"><div class="card-title">账号与隐私</div></div>
+    <div class="switch-row">
+      <div class="sw-label">账号安全<small>修改密码、绑定手机</small></div>
+      <a class="btn btn-sm btn-outline" href="javascript:void(0)" onclick="UI.toast('演示环境暂不支持','warning')">管理</a>
+    </div>
+    <div class="switch-row">
+      <div class="sw-label">未成年人保护<small>最小化采集，监护人同意已记录</small></div>
+      <span class="tag tag-success">已开启</span>
+    </div>
+    <div class="switch-row">
+      <div class="sw-label">帮助与反馈</div>
+      <a class="btn btn-sm btn-outline" href="javascript:void(0)" onclick="UI.feedback()">意见反馈</a>
+    </div>
+  </div>
+</div>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script>
+(function () {
+  if (!UI.guard('student')) return;
+  UI.topbar('profile', { base: '../' });
+  document.getElementById('head').innerHTML = UI.pageHead('设置', '账号安全、隐私、通知、护眼（PRD 4.5.1）');
+
+  var st = Store.student();
+  var u = Store.user();
+  document.getElementById('s-name').value = u.name;
+  document.getElementById('s-stage').value = st.stage;
+  document.getElementById('s-grade').value = st.grade;
+  document.getElementById('s-school').value = st.school || '';
+  document.querySelectorAll('#s-goals .chip').forEach(function (c) {
+    if ((st.goal || '').indexOf(c.dataset.v) >= 0) c.classList.add('selected');
+    c.onclick = function () { c.classList.toggle('selected'); };
+  });
+  var s = Store.settings();
+  if (s.theme === 'dark') document.getElementById('sw-theme').classList.add('on');
+  document.getElementById('s-rt').value = s.readerTheme || 'day';
+  document.getElementById('s-rs').value = s.readerSize || 17;
+
+  window.UI = Object.assign(window.UI || {}, {
+    saveProfile: function () {
+      UI.toast('资料已保存（演示）', 'success');
+    },
+    flipTheme: function (btn) {
+      UI.toggleTheme();
+      btn.classList.toggle('on', Store.settings().theme === 'dark');
+    },
+    feedback: function () {
+      UI.modal('<h3>意见反馈</h3><div class="field"><textarea class="textarea" id="fb-input" placeholder="告诉我们你的建议…"></textarea></div>',
+        [
+          { label: '取消', value: false },
+          { label: '提交', value: true, primary: true }
+        ]).then(function (v) {
+        if (v) UI.toast('感谢反馈！（演示）', 'success');
+      });
+    }
+  });
+})();
+</script>
+</body>
+</html>

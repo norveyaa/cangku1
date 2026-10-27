@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>反馈 · 伴读智汇</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+</head>
+<body>
+<div class="page" style="max-width:860px">
+  <div id="head"></div>
+  <div id="main"></div>
+</div>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script>
+(function () {
+  if (!UI.guard('student')) return;
+  UI.topbar('courses', { base: '../' });
+  var task = new URLSearchParams(location.search).get('task') || 'think-1';
+  var sub = Store.submission(task);
+
+  if (!sub) {
+    document.getElementById('main').innerHTML = UI.empty('note', '还没有提交记录', '先完成任务再来看看反馈吧',
+      '<a class="btn btn-primary" href="tasks.html?book=luotuoxiangzi">去做任务</a>');
+    return;
+  }
+
+  /* ---------- 即时反馈（PRD 4.2.5） ---------- */
+  var isQuiz = sub.type === '章节测';
+  var scores, feedbackHtml, total;
+
+  if (isQuiz) {
+    total = sub.score;
+    scores = [
+      { k: '章节测得分', v: sub.score },
+      { k: '掌握程度', v: Math.max(40, sub.score - 5) },
+      { k: '文本细节', v: Math.max(40, sub.score + 5) }
+    ];
+    feedbackHtml = '<p>三道题完成了 <b>' + sub.score + '</b> 分。错题已自动进入错题本，系统会在明日任务中推送同类题型巩固。</p>' +
+      '<p style="margin-top:8px">📌 建议回到原文，重读与错题相关的段落，再完成一次"文本证据"练习。</p>';
+  } else {
+    var len = Math.min(1, sub.answer.length / 220);
+    var evScore = sub.hasQuote ? 88 : 62;
+    var thinkScore = Math.min(95, Math.round(58 + len * 30));
+    var undScore = Math.min(95, Math.round(55 + len * 26));
+    total = Math.round((evScore + thinkScore + undScore) / 3);
+    scores = [
+      { k: '理解度', v: undScore },
+      { k: '思辨力', v: thinkScore },
+      { k: '文本证据使用', v: evScore }
+    ];
+    var evPart = sub.hasQuote
+      ? '你引用了原文并让证据为观点服务，这一步做得扎实。'
+      : '你的观点有了，但还缺原文证据——思辨必须"回到文本"，下次试试先找句子再下结论。';
+    feedbackHtml = '<p>' + evPart + '</p>' +
+      '<p style="margin-top:8px">追问一个：如果换个角度看，有没有可能得出相反的结论？试着反驳自己一次，你的论证会更稳。</p>';
+  }
+
+  var meters = scores.map(function (s) {
+    var color = s.v >= 85 ? 'var(--success)' : s.v >= 70 ? 'var(--primary)' : 'var(--warning)';
+    return '<div style="margin-bottom:16px">' +
+      '<div class="flex justify-between text-sm" style="margin-bottom:6px"><span class="weight-600">' + s.k + '</span><span class="mono-num" style="font-weight:700;color:var(--ink)">' + s.v + '</span></div>' +
+      '<div class="progress" style="height:10px;background:var(--primary-weak)"><i style="width:' + s.v + '%;background:' + color + '"></i></div>' +
+      '</div>';
+  }).join('');
+
+  var exts = Store.extendList('luotuoxiangzi').slice(0, 2);
+  var favs = Store.favorites();
+  var extHtml = exts.map(function (e) {
+    var fav = favs.indexOf(e.id) >= 0;
+    return '<div class="list-row"><span class="tag tag-blue" style="width:86px;justify-content:center">' + e.kind + '</span>' +
+      '<div class="lr-main"><div class="lr-title">' + e.title + '</div><div class="lr-sub">约 ' + e.words + '</div></div>' +
+      '<button class="btn btn-sm ' + (fav ? 'btn-accent' : 'btn-outline') + '" onclick="UI.toggleEx(\'' + e.id + '\',this)">' + (fav ? '已收藏' : '＋ 加入书架') + '</button></div>';
+  }).join('');
+
+  document.getElementById('head').innerHTML = UI.pageHead(
+    isQuiz ? '章节测 · 即时反馈' : '思辨题 · AI 反馈',
+    '提交于 ' + sub.date + ' · 提交后 1—3 秒生成（PRD 交互逻辑 5）'
+  );
+  document.getElementById('main').innerHTML =
+    '<div class="card card-pad">' +
+    '<div class="flex items-center gap-16" style="flex-wrap:wrap">' +
+    '<div style="width:96px;height:96px;border-radius:50%;background:var(--primary-weak);display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0">' +
+    '<span style="font-family:var(--serif);font-size:26px;font-weight:700;color:var(--primary)">' + total + '</span>' +
+    '<span class="text-xs text-muted">综合得分</span></div>' +
+    '<div style="flex:1;min-width:240px">' + meters + '</div>' +
+    '</div>' +
+    '<div class="divider-line"></div>' +
+    '<div class="card-head" style="margin-bottom:8px"><div class="card-title">' + UI.icon('spark', 17) + 'AI 陪练反馈</div></div>' +
+    '<div class="text-sm" style="line-height:2">' + feedbackHtml + '</div>' +
+    '<div class="divider-line"></div>' +
+    '<div class="card-head"><div class="card-title">' + UI.icon('book', 17) + '为你推荐的拓展阅读</div></div>' + extHtml +
+    '<div class="divider-line"></div>' +
+    '<div class="flex justify-between items-center" style="flex-wrap:wrap;gap:8px">' +
+    '<span class="text-sm text-muted">' + UI.icon('clock', 14) + ' 教师评阅：<span class="tag tag-warning">待评阅</span> 评阅后会在消息中心通知你</span>' +
+    '</div>' +
+    '<div class="flex gap-12 mt-20" style="flex-wrap:wrap">' +
+    '<a class="btn btn-primary" href="reader.html?book=luotuoxiangzi&ch=2">继续阅读</a>' +
+    '<a class="btn btn-outline" href="tasks.html?book=luotuoxiangzi&t=2">再做一题</a>' +
+    '<a class="btn btn-ghost" href="report.html">查看学习报告</a>' +
+    '</div>' +
+    '</div>' +
+    '<div class="card card-pad mt-20" style="background:linear-gradient(135deg,rgba(241,180,100,.12),rgba(241,180,100,.03))">' +
+    '<div class="flex items-center gap-12">' +
+    '<span style="color:var(--accent-deep);font-size:22px">🏅</span>' +
+    '<div><div class="weight-600" style="font-size:14.5px">成就进度：让观点有依据</div>' +
+    '<div class="text-xs text-muted">已完成 4 / 5 次证据型思辨 · 再完成 1 次即可点亮</div></div>' +
+    '</div></div>';
+
+  window.UI = Object.assign(window.UI || {}, {
+    toggleEx: function (id, btn) {
+      var on = Store.toggleFavorite(id);
+      btn.className = 'btn btn-sm ' + (on ? 'btn-accent' : 'btn-outline');
+      btn.textContent = on ? '已收藏' : '＋ 加入书架';
+      UI.toast(on ? '已收藏' : '已移除收藏', 'success');
+    }
+  });
+})();
+</script>
+</body>
+</html>

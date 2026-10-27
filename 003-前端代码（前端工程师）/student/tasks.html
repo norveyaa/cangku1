@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>章节任务 · 伴读智汇</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+</head>
+<body>
+<div class="page">
+  <div id="head"></div>
+  <div style="display:grid;grid-template-columns:240px 1fr;gap:20px" class="task-cols">
+    <div class="card" style="align-self:start" id="task-nav"></div>
+    <div id="task-body"></div>
+  </div>
+</div>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script>
+(function () {
+  if (!UI.guard('student')) return;
+  UI.topbar('courses', { base: '../' });
+  var params = new URLSearchParams(location.search);
+  var bookId = params.get('book') || 'luotuoxiangzi';
+  var book = Store.book(bookId);
+  var t = Math.min(parseInt(params.get('t') || '0', 10) || 0, 4);
+  var quizCh = 2; // 章节测对应第三章（已读）
+
+  var TASKS = [
+    { n: '① 导读任务', ic: 'bulb', d: '作者生平、时代背景与阅读策略' },
+    { n: '② 章节任务', ic: 'pen', d: '第三章 · 章节测（3 题）' },
+    { n: '③ 思辨题', ic: 'spark', d: '观点辨析 · 需引用文本证据' },
+    { n: '④ 拓展任务', ic: 'book', d: '同主题文本 · 影视片段' },
+    { n: '⑤ 读后感', ic: 'note', d: '草稿 · 提交 · AI 反馈 · 教师评阅' }
+  ];
+
+  document.getElementById('head').innerHTML = UI.pageHead('学习任务 · 《' + book.title + '》', book.chapterNames[quizCh] + ' · 完成任务可解锁后续章节与思辨推送');
+  document.getElementById('task-nav').innerHTML =
+    '<div class="card-pad" style="padding-bottom:12px"><div class="card-title" style="margin-bottom:12px">任务列表</div></div>' +
+    TASKS.map(function (x, i) {
+      return '<div class="list-row clickable" style="padding:12px 24px;' + (i === t ? 'background:var(--primary-weak);margin:0 -0px' : '') + '" onclick="location.href=\'tasks.html?book=' + bookId + '&t=' + i + '\'">' +
+        '<span style="color:' + (i === t ? 'var(--primary)' : 'var(--muted)') + '">' + UI.icon(x.ic, 17) + '</span>' +
+        '<div class="lr-main"><div class="lr-title" style="' + (i === t ? 'color:var(--primary);font-weight:600' : '') + '">' + x.n + '</div>' +
+        '<div class="lr-sub">' + x.d + '</div></div>' +
+        (i === t ? '<span class="tag">当前</span>' : '') +
+        '</div>';
+    }).join('');
+
+  var body = document.getElementById('task-body');
+  var html = '';
+
+  if (t === 0) {
+    /* ---------- 导读任务 ---------- */
+    html =
+      '<div class="card card-pad">' +
+      '<div class="card-head"><div class="card-title">' + UI.icon('bulb', 17) + '导读：作者与时代背景</div><span class="tag tag-success">约 5 分钟</span></div>' +
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px" class="grid-3">' +
+      guideCard('作者生平', '老舍（1899—1966），原名舒庆春，北京人。代表作《骆驼祥子》《四世同堂》《茶馆》，被誉为"人民艺术家"。' +
+        '他写北平的小人物，带着同情与幽默。') +
+      guideCard('时代背景', '小说以 20 世纪 20 年代的北平为背景。军阀混战，民不聊生，人力车夫是城市最底层的劳动者。' +
+        '祥子的"三起三落"正是时代的缩影。') +
+      guideCard('阅读策略', '① 圈画写祥子心理活动的句子；② 关注"车"的意象变化；③ 每读完三章，用自己的话概括祥子的处境。') +
+      '</div>' +
+      '<div class="mt-20 flex gap-12" style="justify-content:flex-end">' +
+      '<button class="btn btn-primary" onclick="UI.finishGuide()">' + UI.icon('check', 16) + '完成导读，开始阅读</button></div>' +
+      '</div>';
+  } else if (t === 1) {
+    /* ---------- 章节测 ---------- */
+    var quiz = Store.quiz(bookId, quizCh);
+    html = '<div class="card card-pad" id="quiz-card">' +
+      '<div class="card-head"><div class="card-title">' + UI.icon('pen', 17) + '章节测 · ' + book.chapterNames[quizCh] + '</div>' +
+      '<span class="tag">3 题 · 完成后即时反馈</span></div>' +
+      '<div id="quiz-wrap"></div>' +
+      '<div class="mt-20 flex gap-12" style="justify-content:flex-end">' +
+      '<button class="btn btn-primary btn-lg" id="quiz-submit" onclick="UI.submitQuiz()">提交测验</button></div>' +
+      '</div>';
+    body.innerHTML = html;
+    renderQuiz(quiz);
+  } else if (t === 2) {
+    /* ---------- 思辨题 ---------- */
+    var think = Store.thinkList(bookId)[0];
+    var sub = Store.submission('think-1');
+    if (sub) {
+      html = '<div class="card card-pad">' +
+        '<div class="card-head"><div class="card-title">' + UI.icon('check', 17) + '已提交 · ' + think.title + '</div><span class="tag tag-success">已完成</span></div>' +
+        '<p class="text-sm" style="line-height:1.9;color:var(--muted)">你的回答：</p>' +
+        '<div style="background:var(--bg);border-radius:10px;padding:16px 18px;margin:10px 0 16px;font-size:14px;line-height:1.9">' + UI.esc(sub.answer) + '</div>' +
+        '<div class="flex gap-12"><a class="btn btn-primary" href="feedback.html?task=think-1">查看 AI 反馈</a>' +
+        '<a class="btn btn-outline" href="reader.html?book=' + bookId + '&ch=' + (think.chapter - 1) + '">回到原文</a></div>' +
+        '</div>';
+    } else {
+      html = '<div class="card card-pad">' +
+        '<div class="card-head"><div class="card-title">' + UI.icon('spark', 17) + '思辨题</div>' +
+        '<span class="tag tag-accent">' + think.type + ' · ' + think.diff + '</span></div>' +
+        '<h2 class="serif" style="font-size:19px;line-height:1.7;margin-bottom:8px">' + think.title + '</h2>' +
+        '<p class="text-sm text-muted" style="line-height:1.8">' + think.guide + '</p>' +
+        '<div style="background:var(--warning-weak);border-radius:10px;padding:12px 16px;margin:14px 0;font-size:13px;display:flex;gap:10px;align-items:flex-start">' +
+        '<span style="color:var(--warning);flex-shrink:0">' + UI.icon('book', 16) + '</span>' +
+        '<span><b>思辨规则：</b>' + think.evidence + '</span></div>' +
+        '<div class="field"><label>我的观点与理由（120 字以上）</label>' +
+        '<textarea class="textarea" id="think-answer" placeholder="先亮观点，再用文本证据支撑…"></textarea>' +
+        '<div class="hint" id="think-count">0 字</div></div>' +
+        '<div class="field"><label>引用文本证据（可粘贴划线内容）</label>' +
+        '<textarea class="textarea" id="think-evidence" style="min-height:70px" placeholder="例如：“他想象着，一辆属于自己的新车，跑起来风响……”"></textarea></div>' +
+        '<div class="field"><label>需要提示吗？（苏格拉底式，不会直接给答案）</label>' +
+        '<div class="chip-group">' +
+        '<button class="chip" data-h="light" onclick="UI.showHint(\'light\')">轻提示</button>' +
+        '<button class="chip" data-h="mid" onclick="UI.showHint(\'mid\')">中提示</button>' +
+        '<button class="chip" data-h="full" onclick="UI.showHint(\'full\')">详细解析</button>' +
+        '</div>' +
+        '<div class="hint hide" id="hint-box" style="background:var(--bg);border-radius:8px;padding:12px 14px;margin-top:10px;line-height:1.8;display:none"></div></div>' +
+        '<div class="mt-16 flex gap-12" style="justify-content:space-between;flex-wrap:wrap">' +
+        '<button class="btn btn-outline" onclick="location.href=\'reader.html?book=' + bookId + '&ch=' + (think.chapter - 1) + '\'">' + UI.icon('book', 15) + '回到原文找证据</button>' +
+        '<button class="btn btn-primary btn-lg" onclick="UI.submitThink()">提交作答</button></div>' +
+        '</div>';
+    }
+  } else if (t === 3) {
+    /* ---------- 拓展任务 ---------- */
+    var exts = Store.extendList(bookId);
+    var favs = Store.favorites();
+    html = '<div class="card card-pad">' +
+      '<div class="card-head"><div class="card-title">' + UI.icon('book', 17) + '拓展阅读 <span class="sub">同作者 · 同主题 · 同体裁</span></div></div>' +
+      exts.map(function (e) {
+        var fav = favs.indexOf(e.id) >= 0;
+        return '<div class="list-row">' +
+          '<span class="tag tag-blue" style="width:86px;justify-content:center">' + e.kind + '</span>' +
+          '<div class="lr-main"><div class="lr-title">' + e.title + '</div>' +
+          '<div class="lr-sub">约 ' + e.words + '</div></div>' +
+          '<button class="btn btn-sm ' + (fav ? 'btn-accent' : 'btn-outline') + '" onclick="UI.toggleEx(\'' + e.id + '\',this)">' +
+          (fav ? '已收藏' : '＋ 加入书架') + '</button>' +
+          '</div>';
+      }).join('') +
+      '<div class="demo-box" style="margin-top:16px">拓展阅读内容由推荐引擎按"同作者、同主题、同时代、同体裁"推送，正式版接入正版资源库。</div>' +
+      '</div>';
+  } else {
+    /* ---------- 读后感 ---------- */
+    html = '<div class="card card-pad">' +
+      '<div class="card-head"><div class="card-title">' + UI.icon('note', 17) + '读后感 / 小论文</div>' +
+      '<span class="tag">支持草稿 · AI 反馈 · 教师评阅</span></div>' +
+      '<div class="field"><label>标题</label><input class="input" id="essay-title" placeholder="例如：希望的三次熄灭——读《骆驼祥子》" value="希望的三次熄灭——读《骆驼祥子》"></div>' +
+      '<div class="field"><label>正文</label><textarea class="textarea" id="essay-body" style="min-height:200px" placeholder="结合文本细节，写下你的思考…">读完《骆驼祥子》的前八章，我一直在想一个问题：祥子的希望为什么一次次熄灭？\n\n第一次买车时，作者写他"跑起来风响，像一只小兽"。这个比喻很有力量——小兽有野性、有生命力，可是"小兽"也意味着容易被捕捉、被驯服。希望越大，跌落越重。\n\n第二次丢车之后，祥子没有放弃。他把卖骆驼的钱小心翼翼地攒起来。可是我不禁想：如果时代没有给他一条路，一个人再要强又能怎样？</textarea></div>' +
+      '<div class="flex gap-12" style="justify-content:space-between;flex-wrap:wrap">' +
+      '<div class="flex gap-12">' +
+      '<button class="btn btn-outline" onclick="UI.toast(\'草稿已保存（演示）\',\'success\')">存草稿</button>' +
+      '<button class="btn btn-outline" onclick="UI.toast(\'已提交（演示）\',\'success\')">提交给老师</button></div>' +
+      '<button class="btn btn-primary btn-lg" onclick="UI.aiFeedback()">AI 先看一遍</button></div>' +
+      '</div>';
+  }
+  body.innerHTML = html;
+  if (t === 1) bindQuiz();
+
+  /* ---------- 工具函数 ---------- */
+  function guideCard(t, d) {
+    return '<div style="background:var(--bg);border-radius:10px;padding:16px 18px">' +
+      '<div class="weight-600" style="font-size:14px;margin-bottom:8px;color:var(--primary)">' + t + '</div>' +
+      '<div class="text-sm text-muted" style="line-height:1.9">' + d + '</div></div>';
+  }
+
+  var quizState = {};
+  function renderQuiz(quiz) {
+    document.getElementById('quiz-wrap').innerHTML = quiz.map(function (q, qi) {
+      return '<div style="margin-bottom:22px">' +
+        '<div class="weight-600" style="margin-bottom:10px">' + (qi + 1) + '. ' + q.q + '</div>' +
+        q.opts.map(function (o, oi) {
+          return '<label class="check-row" style="padding:9px 14px;border:1px solid var(--divider);border-radius:8px;margin-bottom:8px;cursor:pointer" data-q="' + qi + '" data-o="' + oi + '">' +
+            '<input type="radio" name="q' + qi + '" value="' + oi + '" onchange="UI.pickOpt(' + qi + ',' + oi + ')">' +
+            '<span style="color:var(--ink)">' + o + '</span></label>';
+        }).join('') +
+        '<div class="hide" id="exp-' + qi + '" style="font-size:12.5px;margin-top:6px;line-height:1.8"></div>' +
+        '</div>';
+    }).join('');
+  }
+
+  function bindQuiz() {
+    var quiz = Store.quiz(bookId, quizCh);
+    var card = document.getElementById('quiz-card');
+    // 键盘可选，点击行选择
+    document.querySelectorAll('#quiz-wrap label.check-row').forEach(function (l) {
+      l.onclick = function () {
+        var radio = l.querySelector('input');
+        radio.checked = true;
+        var q = +l.dataset.q, o = +l.dataset.o;
+        quizState[q] = o;
+        document.querySelectorAll('#quiz-wrap label.check-row[data-q="' + q + '"]').forEach(function (x) {
+          x.style.borderColor = 'var(--divider)';
+        });
+        l.style.borderColor = 'var(--primary)';
+        if (quizState.finished) grade();
+      };
+    });
+  }
+
+  function grade() {
+    var quiz = Store.quiz(bookId, quizCh);
+    var right = 0;
+    quiz.forEach(function (q, qi) {
+      var exp = document.getElementById('exp-' + qi);
+      var mine = quizState[qi];
+      if (mine === undefined) return;
+      var ok = mine === q.a;
+      if (ok) right++;
+      exp.classList.remove('hide');
+      exp.innerHTML = ok
+        ? '<span style="color:var(--success)">' + UI.icon('check', 13) + ' 回答正确。' + q.exp + '</span>'
+        : '<span style="color:var(--error)">' + UI.icon('x', 13) + ' 回答错误。正确答案：' + q.opts[q.a] + '。' + q.exp + '（已加入错题本）</span>';
+      if (!ok && !quizState.addedWrong) {
+        Store.addWrong({
+          id: 'w-' + Date.now() + qi, bookId: bookId, q: q.q, mine: q.opts[mine], right: q.opts[q.a],
+          exp: q.exp, date: new Date().toISOString().slice(0, 10)
+        });
+      }
+    });
+    quizState.addedWrong = true;
+    Store.submitTask('quiz-' + quizCh, { type: '章节测', score: Math.round(right / quiz.length * 100) });
+    UI.toast('测验完成：' + right + ' / ' + quiz.length + ' 题正确', right === quiz.length ? 'success' : 'warning');
+  }
+
+  window.UI = Object.assign(window.UI || {}, {
+    finishGuide: function () {
+      Store.submitTask('guide-1', { type: '导读', done: true });
+      UI.toast('导读完成，开始阅读吧', 'success');
+      setTimeout(function () { location.href = 'reader.html?book=' + bookId + '&ch=0'; }, 500);
+    },
+    pickOpt: function (q, o) { quizState[q] = o; },
+    submitQuiz: function () {
+      var quiz = Store.quiz(bookId, quizCh);
+      var answered = 0;
+      quiz.forEach(function (_, qi) { if (quizState[qi] !== undefined) answered++; });
+      if (answered < quiz.length) { UI.toast('还有 ' + (quiz.length - answered) + ' 题未作答', 'warning'); return; }
+      quizState.finished = true;
+      grade();
+      UI.toast('正在生成反馈…', 'success');
+      setTimeout(function () { location.href = 'feedback.html?task=quiz-' + quizCh; }, 1200);
+    },
+    showHint: function (h) {
+      var think = Store.thinkList(bookId)[0];
+      var box = document.getElementById('hint-box');
+      box.style.display = 'block';
+      box.innerHTML = '<b>' + ({ light: '轻提示', mid: '中提示', full: '详细解析' }[h]) + '：</b>' + UI.esc(think.hints[h]);
+    },
+    submitThink: function () {
+      var answer = document.getElementById('think-answer').value.trim();
+      var ev = document.getElementById('think-evidence').value.trim();
+      if (answer.length < 20) { UI.toast('回答太短啦，再展开说说（至少 20 字）', 'warning'); return; }
+      if (ev.length < 5) { UI.toast('请引用文本证据——思辨题必须绑定原文（PRD 补充建议 2）', 'warning'); return; }
+      var quote = /“|”|"|"/.test(ev);
+      var think = Store.thinkList(bookId)[0];
+      Store.submitTask('think-1', {
+        type: '思辨题', answer: answer, evidence: ev, hasQuote: quote
+      });
+      var btn = event && event.target;
+      UI.toast('提交成功，AI 正在批改（约 1-3 秒）…', 'success');
+      setTimeout(function () { location.href = 'feedback.html?task=think-1'; }, 1400);
+    },
+    toggleEx: function (id, btn) {
+      var on = Store.toggleFavorite(id);
+      btn.className = 'btn btn-sm ' + (on ? 'btn-accent' : 'btn-outline');
+      btn.textContent = on ? '已收藏' : '＋ 加入书架';
+      UI.toast(on ? '已收藏，可在个人中心查看' : '已移除收藏', 'success');
+    },
+    aiFeedback: function () {
+      UI.toast('AI 批改中…', 'success');
+      setTimeout(function () {
+        UI.modal('<h3>AI 反馈（演示）</h3><p class="modal-sub" style="line-height:2">' +
+          '① <b>观点明确</b>：以"希望为何熄灭"为主线，问题意识好。<br>' +
+          '② <b>证据使用</b>：引用了"小兽"的比喻并加以分析，但第二处引用可以更精准。<br>' +
+          '③ <b>建议</b>：补充一处原文中祥子攒钱的细节，让"努力"更有实感。',
+          [{ label: '关闭', value: null, primary: true }]);
+      }, 900);
+    }
+  });
+
+  // 字数统计
+  var ta = document.getElementById('think-answer');
+  if (ta) ta.oninput = function () {
+    document.getElementById('think-count').textContent = ta.value.length + ' 字';
+  };
+})();
+</script>
+</body>
+</html>

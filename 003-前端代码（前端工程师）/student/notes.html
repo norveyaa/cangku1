@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>笔记与批注 · 伴读智汇</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+</head>
+<body>
+<div class="page" style="max-width:880px">
+  <div id="head"></div>
+  <div class="flex gap-12 mb-20" style="flex-wrap:wrap">
+    <select class="select" style="width:auto;height:36px;padding:0 12px;font-size:13px" id="f-book" onchange="render()">
+      <option value="">全部书目</option>
+    </select>
+    <select class="select" style="width:auto;height:36px;padding:0 12px;font-size:13px" id="f-type" onchange="render()">
+      <option value="">全部类型</option>
+      <option>批注</option>
+      <option>摘抄</option>
+      <option>阅读笔记</option>
+    </select>
+  </div>
+  <div class="card" id="list"></div>
+</div>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script>
+(function () {
+  if (!UI.guard('student')) return;
+  UI.topbar('profile', { base: '../' });
+  document.getElementById('head').innerHTML = UI.pageHead('笔记与批注', '把读过的，留下来 · 按书目、章节、时间筛选');
+
+  var books = Store.books();
+  document.getElementById('f-book').innerHTML += books.map(function (b) {
+    return '<option value="' + b.id + '">' + b.title + '</option>';
+  }).join('');
+
+  function typeOf(n) {
+    if (n.quote && n.text.indexOf('摘抄自') === 0) return '摘抄';
+    if (n.quote) return '批注';
+    return '阅读笔记';
+  }
+
+  function render() {
+    var fb = document.getElementById('f-book').value;
+    var ft = document.getElementById('f-type').value;
+    var notes = Store.notes().filter(function (n) {
+      if (fb && n.bookId !== fb) return false;
+      if (ft && typeOf(n) !== ft) return false;
+      return true;
+    });
+    var box = document.getElementById('list');
+    if (!notes.length) {
+      box.innerHTML = UI.empty('note', '这里还没有笔记', '阅读时选中文字，即可划线、批注、摘抄',
+        '<a class="btn btn-primary" href="reader.html?book=luotuoxiangzi">去阅读</a>');
+      return;
+    }
+    box.innerHTML = notes.map(function (n) {
+      var b = Store.book(n.bookId);
+      return '<div class="card-pad" style="border-bottom:1px solid var(--divider)">' +
+        '<div class="flex items-center gap-12" style="flex-wrap:wrap">' +
+        '<span class="tag ' + (typeOf(n) === '摘抄' ? 'tag-green' : typeOf(n) === '批注' ? 'tag-accent' : 'tag-blue') + '">' + typeOf(n) + '</span>' +
+        '<span class="text-xs text-muted">' + b.title + ' · ' + n.chapterTitle + '</span>' +
+        '<span class="text-xs text-muted" style="margin-left:auto">' + n.date + '</span>' +
+        '</div>' +
+        (n.quote ? '<blockquote style="margin:12px 0;padding:10px 14px;border-left:3px solid var(--accent);background:rgba(241,180,100,.12);border-radius:0 8px 8px 0;font-size:13.5px;line-height:1.9">' + UI.esc(n.quote) + '…</blockquote>' : '') +
+        '<p class="text-sm" style="line-height:1.9">' + UI.esc(n.text) + '</p>' +
+        '<div class="flex gap-12 mt-12">' +
+        '<a class="btn btn-sm btn-outline" href="reader.html?book=' + n.bookId + '&ch=' + n.chapter + '">' + UI.icon('book', 14) + '回到原文</a>' +
+        '<button class="btn btn-sm btn-ghost" onclick="UI.delNote(\'' + n.id + '\')">删除</button>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  window.UI = Object.assign(window.UI || {}, {
+    delNote: function (id) {
+      UI.confirmAct('删除这条笔记？', function () {
+        Store.removeNote(id);
+        render();
+        UI.toast('笔记已删除', 'success');
+      });
+    }
+  });
+  render();
+})();
+</script>
+</body>
+</html>

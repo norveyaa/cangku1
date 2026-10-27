@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>题库 · 伴读智汇</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+</head>
+<body>
+<div class="page" style="max-width:960px">
+  <div id="head"></div>
+  <div class="flex gap-12 mb-20" style="flex-wrap:wrap">
+    <select class="select" style="width:auto;height:36px;font-size:13px" id="f-book" onchange="render()">
+      <option value="">全部书目</option>
+    </select>
+    <select class="select" style="width:auto;height:36px;font-size:13px" id="f-type" onchange="render()">
+      <option value="">全部题型</option>
+      <option>思辨题</option>
+      <option>章节测</option>
+    </select>
+    <select class="select" style="width:auto;height:36px;font-size:13px" id="f-src" onchange="render()">
+      <option value="">全部来源</option>
+      <option>系统题库</option>
+      <option>自建</option>
+      <option>校本</option>
+      <option>收藏</option>
+    </select>
+    <button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="UI.create()">＋ 自建题目</button>
+  </div>
+  <div class="card" id="list"></div>
+</div>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script>
+(function () {
+  if (!UI.guard('teacher')) return;
+  UI.topbar('bank', { base: '../' });
+  document.getElementById('head').innerHTML = UI.pageHead('阅读题库', '系统题 · 自建题 · 校本题 · 收藏题（管理端审核后入正式库）');
+
+  var books = Store.books();
+  document.getElementById('f-book').innerHTML += books.map(function (b) {
+    return '<option value="' + b.id + '">' + b.title + '</option>';
+  }).join('');
+
+  function render() {
+    var fb = document.getElementById('f-book').value;
+    var ft = document.getElementById('f-type').value;
+    var fs = document.getElementById('f-src').value;
+    var bank = Store.bank().filter(function (q) {
+      if (fb && q.bookId !== fb) return false;
+      if (ft && q.type !== ft) return false;
+      if (fs && q.src !== fs) return false;
+      return true;
+    });
+    var box = document.getElementById('list');
+    if (!bank.length) {
+      box.innerHTML = UI.empty('book', '没有匹配的题目', '试试其他筛选条件', '<button class="btn btn-primary" onclick="UI.create()">自建题目</button>');
+      return;
+    }
+    box.innerHTML = bank.map(function (q) {
+      var b = Store.book(q.bookId);
+      var srcTag = q.src === '系统题库' ? 'tag' : q.src === '自建' ? 'tag-blue' : q.src === '校本' ? 'tag-green' : 'tag-accent';
+      return '<div class="card-pad" style="border-bottom:1px solid var(--divider)">' +
+        '<div class="flex items-center gap-12" style="flex-wrap:wrap">' +
+        '<span class="tag ' + (q.type === '思辨题' ? 'tag-accent' : 'tag-blue') + '">' + q.type + '</span>' +
+        '<span class="tag tag-green">' + q.diff + '</span>' +
+        '<span class="tag ' + srcTag + '">' + q.src + '</span>' +
+        '<span class="text-xs text-muted">《' + b.title + '》</span>' +
+        '<span style="margin-left:auto" class="text-xs text-muted">' + q.id.replace('bk-', '#') + '</span>' +
+        '</div>' +
+        '<div class="weight-600" style="font-size:15px;margin-top:10px">' + q.title + '</div>' +
+        '<div class="flex gap-12 mt-12">' +
+        '<button class="btn btn-sm btn-outline" onclick="UI.use(\'' + q.title + '\')">用于新任务</button>' +
+        '<button class="btn btn-sm btn-ghost" onclick="UI.preview()">预览</button>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  window.UI = Object.assign(window.UI || {}, {
+    create: function () {
+      UI.modal('<h3>自建思辨题</h3>' +
+        '<div class="field"><label>题目</label><textarea class="textarea" placeholder="题干…"></textarea></div>' +
+        '<div class="field"><label>关联书目</label><select class="select">' + books.map(function (b) { return '<option>' + b.title + '</option>'; }).join('') + '</select></div>' +
+        '<div class="field"><label>难度</label><div class="chip-group"><button class="chip selected">基础</button><button class="chip">进阶</button><button class="chip">挑战</button></div></div>',
+        [
+          { label: '取消', value: false },
+          { label: '保存（提交审核）', value: true, primary: true }
+        ]).then(function (v) {
+        if (v) UI.toast('题目已保存，等待内容审核后入库（PRD 4.6 管理端）', 'success');
+      });
+    },
+    use: function (t) {
+      UI.toast('已加入任务草稿：' + t.slice(0, 16) + '…（演示）', 'success');
+    },
+    preview: function () {
+      UI.toast('预览功能演示', 'success');
+    }
+  });
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 陪练 · 伴读智汇</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<style>
+.coach-shell { display: flex; height: calc(100vh - var(--topbar-h)); overflow: hidden; }
+.coach-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.coach-chat { flex: 1; overflow-y: auto; padding: 28px 8%; display: flex; flex-direction: column; gap: 16px; }
+.coach-side { width: 300px; flex-shrink: 0; background: var(--card); border-left: 1px solid var(--divider); padding: 20px; overflow-y: auto; }
+@media (max-width: 900px) { .coach-side { display: none; } .coach-chat { padding: 20px 16px; } }
+.coach-msg { max-width: 76%; display: flex; gap: 12px; }
+.coach-msg .cm-av { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.coach-msg.ai .cm-av { background: var(--primary); color: #fff; }
+.coach-msg.me { align-self: flex-end; flex-direction: row-reverse; }
+.coach-msg.me .cm-av { background: var(--accent); color: var(--accent-ink); }
+.coach-msg .cm-bubble {
+  padding: 12px 16px; border-radius: 14px; font-size: 14.5px; line-height: 1.85;
+  background: var(--card); border: 1px solid var(--divider); box-shadow: var(--shadow-sm);
+}
+.coach-msg.me .cm-bubble { background: var(--primary); color: #fff; border-color: var(--primary); }
+:root[data-theme="dark"] .coach-msg.me .cm-bubble { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.coach-msg .cm-meta { font-size: 11px; color: var(--muted); margin-top: 5px; }
+.coach-msg.ai .cm-meta { text-align: left; }
+.coach-msg.me .cm-meta { text-align: right; }
+.coach-input-bar { padding: 16px 8%; border-top: 1px solid var(--divider); background: var(--card); display: flex; gap: 12px; }
+@media (max-width: 900px) { .coach-input-bar { padding: 12px 16px; } }
+.coach-input-bar .textarea { min-height: 48px; height: 48px; padding: 12px 16px; flex: 1; }
+.typing-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); margin-right: 4px; animation: blink 1s infinite; }
+.typing-dot:nth-child(2) { animation-delay: .2s; } .typing-dot:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 50% { opacity: .3; } }
+</style>
+</head>
+<body>
+<div id="topbar"></div>
+<div class="coach-shell">
+  <div class="coach-main">
+    <div class="coach-chat" id="chat"></div>
+    <div class="coach-input-bar">
+      <textarea class="textarea" id="input" placeholder="和 AI 陪练聊聊你的阅读思考…（Enter 发送）"></textarea>
+      <button class="btn btn-primary btn-lg" style="height:48px" onclick="UI.send()">发送</button>
+    </div>
+  </div>
+  <aside class="coach-side">
+    <div class="card-title mb-16">陪练设置</div>
+    <div class="field">
+      <label>角色视角</label>
+      <div class="chip-group" id="role-chips">
+        <button class="chip selected" data-r="socratic">苏格拉底式</button>
+        <button class="chip" data-r="author">作者视角</button>
+        <button class="chip" data-r="critic">批判者视角</button>
+      </div>
+      <div class="hint">角色陪练：换个身份提问，答案会不一样（PRD 4.3.1）</div>
+    </div>
+    <div class="field">
+      <label>提示分级</label>
+      <div class="chip-group" id="hint-chips">
+        <button class="chip selected" data-h="light">轻提示</button>
+        <button class="chip" data-h="mid">中提示</button>
+        <button class="chip" data-h="full">详细解析</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>快捷话题</label>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-sm btn-outline" style="justify-content:flex-start" onclick="UI.quick('祥子的希望为什么一次次熄灭？')">祥子的希望为什么一次次熄灭？</button>
+        <button class="btn btn-sm btn-outline" style="justify-content:flex-start" onclick="UI.quick('《朝花夕拾》里的鲁迅和《骆驼祥子》里的老舍，笔下的北平有什么不同？')">两位作家笔下的北平有何不同？</button>
+        <button class="btn btn-sm btn-outline" style="justify-content:flex-start" onclick="UI.quick('读完一章总抓不住重点，怎么办？')">读完一章总抓不住重点，怎么办？</button>
+      </div>
+    </div>
+    <div class="divider-line"></div>
+    <p class="text-xs text-muted" style="line-height:1.9">
+      🧭 陪练原则：不直接给答案，优先追问与提示（PRD 补充建议 5）。<br><br>
+      📖 对话记录自动保存，可在「我的 → 陪练记录」回看。
+    </p>
+    <button class="btn btn-sm btn-ghost mt-12" onclick="UI.clearLog()">清空对话记录</button>
+  </aside>
+</div>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script>
+(function () {
+  if (!UI.guard('student')) return;
+  UI.topbar('coaching', { base: '../' });
+  var topic = new URLSearchParams(location.search).get('topic');
+
+  var S = { role: 'socratic', hint: 'light', typing: false };
+
+  /* ---------- 陪练引擎（关键词 → 苏格拉底式回应，按视角/提示分级变化） ---------- */
+  var HINTS = {
+    light: { ask: '再往前想一步：', ref: '回到原文找一句话' },
+    mid: { ask: '提示一个方向：', ref: '注意第一章里祥子买车的心理描写' },
+    full: { ask: '展开讲讲：', ref: '原文"跑起来风响，像一只小兽"——"小兽"有生命力，也暗示被驯服的命运' }
+  };
+  var ROLES = {
+    socratic: { tag: 'AI 陪练', prefix: '', open: '你为什么这么想？依据是什么？还有别的可能吗？' },
+    author: { tag: '作者视角', prefix: '（老舍视角）', open: '若以老舍的眼光看：' },
+    critic: { tag: '批判者视角', prefix: '（批判者视角）', open: '我不同意——除非你能拿出文本证据：' }
+  };
+
+  function reply(q) {
+    var h = HINTS[S.hint], r = ROLES[S.role];
+    var rules = [
+      { re: /为什么|原因|动机/, a: h.ask + '先分清"表层原因"和"深层原因"。祥子想买车，表层是谋生，深层呢？' + h.ref + '。找到了再告诉我。' },
+      { re: /希望|熄灭/, a: r.open + '希望不是一次灭掉的，是三次。每一次熄灭之后祥子有什么变化？把这个"变化"列出来，答案就浮现了。' },
+      { re: /北平|城市|环境/, a: r.open + '北平在小说里不只是背景。找一处环境描写，说说它和祥子的处境有什么关系。' },
+      { re: /重点|方法|怎么读/, a: '读整本书有个窍门：抓"变化"。每章结尾问自己——这一章里，谁变了？什么变了？变了的背后是什么？' },
+      { re: /虎妞|小福子|人物/, a: r.open + '这个人物的每一次出场，都给祥子带来什么？是推力还是阻力？用具体情节说话。' },
+      { re: /对比|不同/, a: '对比阅读的好问题。建议列一个表：同一座北平，两人笔下出现的"地点"和"声音"分别是什么？表格会替你发现答案。' },
+      { re: /证据|原文/, a: '对，证据是思辨的锚。把你找到的那句话抄过来，我们一起看它到底在说什么。' },
+      { re: /总结|概括|大意/, a: '先别急着总结。用一句话说本章"最打动你的地方"，再想想作者为什么这样安排。' }
+    ];
+    for (var i = 0; i < rules.length; i++) {
+      if (rules[i].re.test(q)) return r.prefix + rules[i].a;
+    }
+    return r.prefix + '好问题。我不急着回答——你自己先猜一个答案，然后' + h.ref + '验证它。把结果告诉我。';
+  }
+
+  /* ---------- 渲染 ---------- */
+  function render(typing) {
+    var log = Store.coachLog();
+    var box = document.getElementById('chat');
+    box.innerHTML = log.map(function (m, i) {
+      var tag = m.role === 'ai' ? '伴读智汇 · AI 陪练' : Store.user().name;
+      return '<div class="coach-msg ' + m.role + '">' +
+        '<div class="cm-av">' + (m.role === 'ai' ? '伴' : Store.user().name[0]) + '</div>' +
+        '<div><div class="cm-bubble">' + UI.esc(m.text) + '</div>' +
+        '<div class="cm-meta">' + tag + ' · ' + m.time + '</div></div></div>';
+    }).join('');
+    if (typing) {
+      box.insertAdjacentHTML('beforeend',
+        '<div class="coach-msg ai" id="typing"><div class="cm-av">伴</div><div><div class="cm-bubble">' +
+        '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div></div></div>');
+    }
+    box.scrollTop = box.scrollHeight;
+  }
+
+  /* ---------- 欢迎语 ---------- */
+  if (Store.coachLog().length === 0) {
+    Store.appendCoach('ai', topic === 'compare'
+      ? '我们来做一次对比阅读：《骆驼祥子》与《朝花夕拾》都写到了旧时的北平。你觉得两位作家笔下的北平，最大的不同是什么？先凭印象说，再回原文验证。'
+      : '你好，我是你的 AI 陪练。📖 我不直接给答案，我会追问：为什么？依据是什么？还有别的可能吗？——现在，说说你最近在读什么、卡在了哪里？');
+  }
+
+  /* ---------- 事件 ---------- */
+  document.querySelectorAll('#role-chips .chip').forEach(function (c) {
+    c.onclick = function () {
+      document.querySelectorAll('#role-chips .chip').forEach(function (x) { x.classList.remove('selected'); });
+      c.classList.add('selected');
+      S.role = c.dataset.r;
+      UI.toast('已切换为「' + c.textContent + '」', 'success');
+    };
+  });
+  document.querySelectorAll('#hint-chips .chip').forEach(function (c) {
+    c.onclick = function () {
+      document.querySelectorAll('#hint-chips .chip').forEach(function (x) { x.classList.remove('selected'); });
+      c.classList.add('selected');
+      S.hint = c.dataset.h;
+    };
+  });
+
+  var input = document.getElementById('input');
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); UI.send(); }
+  });
+
+  window.UI = Object.assign(window.UI || {}, {
+    send: function () {
+      var q = input.value.trim();
+      if (!q || S.typing) return;
+      S.typing = true;
+      Store.appendCoach('me', q);
+      input.value = '';
+      render(true);
+      setTimeout(function () {
+        Store.appendCoach('ai', reply(q));
+        S.typing = false;
+        render();
+      }, 900);
+    },
+    quick: function (q) { input.value = q; UI.send(); },
+    clearLog: function () {
+      UI.confirmAct('清空全部对话记录？此操作不可恢复。', function () {
+        Store.clearCoach();
+        render();
+        UI.toast('对话记录已清空', 'success');
+      });
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

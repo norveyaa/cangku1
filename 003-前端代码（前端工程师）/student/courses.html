@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>课程 · 伴读智汇</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+</head>
+<body>
+<div class="page">
+  <div id="head"></div>
+  <div class="tabs mb-20" id="cats">
+    <button class="tab active" data-cat="rec">推荐课程</button>
+    <button class="tab" data-cat="mine">我的课程</button>
+    <button class="tab" data-cat="class">班级课程</button>
+    <button class="tab" data-cat="list">书单</button>
+  </div>
+  <div class="flex gap-12 mb-20" style="flex-wrap:wrap" id="filters"></div>
+  <div class="grid grid-4" id="books-grid"></div>
+  <div id="empty-box"></div>
+</div>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script>
+(function () {
+  if (!UI.guard('student')) return;
+  UI.topbar('courses', { base: '../' });
+  document.getElementById('head').innerHTML = UI.pageHead('课程', '整本书阅读 · 以书目为单元，章节为节点，主题为线索');
+
+  var params = new URLSearchParams(location.search);
+  var initQ = params.get('q') || '';
+  var state = { cat: 'rec', stage: '全部', genre: '全部', diff: '全部' };
+  if (initQ) document.title = '搜索：' + initQ + ' · 伴读智汇';
+
+  var stageOpts = ['全部', '小学', '初中', '高中', '高校'];
+  var genreOpts = ['全部', '小说', '散文', '诗歌', '童话', '寓言', '社科', '科普', '科幻'];
+  var diffOpts = ['全部', '基础', '进阶', '挑战'];
+
+  function renderFilters() {
+    function sel(name, opts) {
+      return '<select class="select" style="width:auto;height:34px;padding:0 10px;font-size:13px" onchange="UI.setFilter(\'' + name + '\',this.value)">' +
+        opts.map(function (o) { return '<option' + (state[name] === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>';
+    }
+    document.getElementById('filters').innerHTML =
+      (initQ ? '<span class="tag tag-accent tag-lg">搜索：“' + UI.esc(initQ) + '”</span>' : '') +
+      sel('stage', stageOpts) + sel('genre', genreOpts) + sel('diff', diffOpts);
+  }
+
+  function catList() {
+    var books = Store.books();
+    var shelf = Store.student().shelf;
+    if (state.cat === 'mine') {
+      return books.filter(function (b) {
+        return shelf.reading.some(function (r) { return r[0] === b.id; }) || shelf.done.indexOf(b.id) >= 0;
+      });
+    }
+    if (state.cat === 'class') {
+      // 班级课程：教师布置（原型中与在读一致，标注入口）
+      return books.filter(function (b) { return ['luotuoxiangzi', 'zhaohuaxishi'].indexOf(b.id) >= 0; });
+    }
+    if (state.cat === 'list') {
+      // 书单：按教育部推荐/新课标等标签
+      return books.filter(function (b) { return ['luotuoxiangzi', 'zhaohuaxishi', 'xiyouji', 'haidiliangwanli', 'hongloumeng', 'sanguo', 'gangtie', 'jianai'].indexOf(b.id) >= 0; });
+    }
+    return books;
+  }
+
+  function render() {
+    var books = catList();
+    if (initQ) {
+      books = books.filter(function (b) {
+        return b.title.indexOf(initQ) >= 0 || b.author.indexOf(initQ) >= 0 || (b.themes || []).join('').indexOf(initQ) >= 0;
+      });
+    }
+    if (state.stage !== '全部') books = books.filter(function (b) { return b.stage === state.stage; });
+    if (state.genre !== '全部') books = books.filter(function (b) { return b.genre === state.genre; });
+    if (state.diff !== '全部') books = books.filter(function (b) { return b.difficulty === state.diff; });
+
+    var grid = document.getElementById('books-grid');
+    var emptyBox = document.getElementById('empty-box');
+    if (!books.length) {
+      grid.innerHTML = '';
+      emptyBox.innerHTML = UI.empty('book', initQ ? '没有找到相关书目' : '这里还没有书目', initQ ? '换个关键词试试' : '去推荐页看看有哪些好书', initQ ? '<button class="btn btn-outline" onclick="location.href=\'courses.html\'">清除搜索</button>' : '');
+      return;
+    }
+    emptyBox.innerHTML = '';
+    grid.innerHTML = books.map(function (b) {
+      var p = Store.progressOf(b.id);
+      var shelfTxt = p.pct === 100 ? '<span class="tag tag-success">已读完</span>' :
+        (p.pct > 0 ? '<span class="tag">在读 ' + p.pct + '%</span>' :
+          '<span class="tag tag-plain">未加入</span>');
+      return '<div class="card clickable" style="overflow:hidden" onclick="location.href=\'course-detail.html?id=' + b.id + '\'">' +
+        '<div style="padding:14px 14px 12px">' +
+        '<img src="../' + Store.bookCover(b) + '" alt="' + b.title + '" style="width:88px;height:123px;border-radius:6px;margin:0 auto;box-shadow:var(--shadow-sm)">' +
+        '</div>' +
+        '<div style="padding:0 18px 18px">' +
+        '<div style="font-family:var(--serif);font-weight:700;font-size:16px;color:var(--ink)">' + b.title + '</div>' +
+        '<div class="text-xs text-muted" style="margin-top:2px">' + b.author + ' 著 · ' + b.era + '</div>' +
+        '<div class="flex gap-8 mt-8" style="flex-wrap:wrap">' +
+        '<span class="tag">' + b.stage + '</span>' +
+        '<span class="tag tag-blue">' + b.genre + '</span>' +
+        '<span class="tag tag-green">' + b.difficulty + '</span>' +
+        '</div>' +
+        '<div class="flex justify-between items-center mt-12">' +
+        '<span class="text-xs text-muted">' + b.words + ' · 约 ' + Math.round(parseInt(b.minutes) / 60) + ' 小时</span>' +
+        shelfTxt +
+        '</div>' +
+        '<div class="progress thin mt-8"><i style="width:' + p.pct + '%"></i></div>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  document.querySelectorAll('#cats .tab').forEach(function (t) {
+    t.onclick = function () {
+      document.querySelectorAll('#cats .tab').forEach(function (x) { x.classList.remove('active'); });
+      t.classList.add('active');
+      state.cat = t.dataset.cat;
+      render();
+    };
+  });
+
+  window.UI = Object.assign(window.UI || {}, {
+    setFilter: function (k, v) { state[k] = v; render(); }
+  });
+
+  renderFilters();
+  render();
+})();
+</script>
+</body>
+</html>

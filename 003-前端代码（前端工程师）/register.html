@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>注册 · 伴读智汇</title>
+<link rel="stylesheet" href="assets/css/base.css">
+</head>
+<body>
+<div class="auth-body">
+  <main class="auth-main" style="max-width:640px">
+    <div class="auth-card">
+      <h1 class="auth-title">创建账号</h1>
+      <p class="auth-sub">三步完成注册，开始你的整本书阅读之旅</p>
+
+      <!-- 步骤条 -->
+      <div class="steps" id="steps">
+        <div class="step now" data-i="0"><div class="num">1</div><div class="lbl">账号信息</div></div>
+        <div class="step" data-i="1"><div class="num">2</div><div class="lbl">身份学段</div></div>
+        <div class="step" data-i="2"><div class="num">3</div><div class="lbl">目标兴趣</div></div>
+      </div>
+
+      <!-- 步骤 1：账号 -->
+      <form id="s0" onsubmit="return UI.s0Next(event)">
+        <div class="field">
+          <label>手机号</label>
+          <input class="input" id="r-phone" placeholder="请输入手机号" maxlength="11" inputmode="numeric">
+        </div>
+        <div class="field">
+          <label>验证码</label>
+          <div class="sms-row">
+            <input class="input" id="r-code" placeholder="4 位验证码" maxlength="4" inputmode="numeric">
+            <button type="button" class="btn btn-outline" onclick="UI.toast('验证码已发送（演示：任意 4 位数字）','success')">获取验证码</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>设置密码</label>
+          <input class="input" id="r-pass" type="password" placeholder="6-20 位，建议字母+数字" maxlength="20">
+        </div>
+        <label class="check-row" style="margin:4px 0 8px">
+          <input type="checkbox" id="r-agree" checked>
+          <span>我已阅读并同意《用户协议》与《隐私政策》。<b style="color:var(--primary)">未成年人请在监护人指导下使用</b>，我们将最小化采集个人信息。</span>
+        </label>
+        <button class="btn btn-primary btn-lg btn-block mt-16" type="submit">下一步</button>
+        <p class="auth-foot">已有账号？<a href="index.html">直接登录</a></p>
+      </form>
+
+      <!-- 步骤 2：身份学段 -->
+      <form id="s1" class="hide" onsubmit="return UI.s1Next(event)">
+        <div class="field">
+          <label>你的身份是？</label>
+          <div class="chip-group" id="role-chips">
+            <button type="button" class="chip selected" data-v="student" onclick="UI.pickRole(this)">我是学生</button>
+            <button type="button" class="chip" data-v="teacher" onclick="UI.pickRole(this)">我是教师</button>
+          </div>
+          <div class="hint hide" id="teacher-hint" style="color:var(--warning)">教师注册后需提交教师资格/学校认证，审核通过后开放班级管理功能。</div>
+        </div>
+        <div id="stu-fields">
+          <div class="field">
+            <label>学段</label>
+            <div class="chip-group" id="stage-chips">
+              <button type="button" class="chip" data-v="小学" onclick="UI.pickStage(this)">小学</button>
+              <button type="button" class="chip selected" data-v="初中" onclick="UI.pickStage(this)">初中</button>
+              <button type="button" class="chip" data-v="高中" onclick="UI.pickStage(this)">高中</button>
+              <button type="button" class="chip" data-v="高校" onclick="UI.pickStage(this)">高校</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>年级</label>
+            <select class="select" id="r-grade">
+              <option>七年级</option><option>八年级</option><option>九年级</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>学校（选填）</label>
+            <input class="input" id="r-school" placeholder="例如：育才中学">
+          </div>
+          <div class="field">
+            <label>班级邀请码（选填，可跳过）</label>
+            <input class="input" id="r-invite" placeholder="加入老师布置的班级课程">
+          </div>
+        </div>
+        <button class="btn btn-primary btn-lg btn-block mt-16" type="submit">下一步</button>
+      </form>
+
+      <!-- 步骤 3：目标兴趣 -->
+      <form id="s2" class="hide" onsubmit="return UI.s2Done(event)">
+        <div class="field">
+          <label>你的阅读目标（可多选）</label>
+          <div class="chip-group" id="goal-chips">
+            <button type="button" class="chip" data-v="应试提分" onclick="UI.toggleChip(this)">应试提分</button>
+            <button type="button" class="chip" data-v="兴趣拓展" onclick="UI.toggleChip(this)">兴趣拓展</button>
+            <button type="button" class="chip selected" data-v="思辨写作" onclick="UI.toggleChip(this)">思辨写作</button>
+            <button type="button" class="chip" data-v="通识素养" onclick="UI.toggleChip(this)">通识素养</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>感兴趣的方向（可多选）</label>
+          <div class="chip-group" id="tag-chips">
+            <button type="button" class="chip selected" data-v="文学" onclick="UI.toggleChip(this)">文学</button>
+            <button type="button" class="chip" data-v="历史" onclick="UI.toggleChip(this)">历史</button>
+            <button type="button" class="chip" data-v="哲学" onclick="UI.toggleChip(this)">哲学</button>
+            <button type="button" class="chip selected" data-v="科幻" onclick="UI.toggleChip(this)">科幻</button>
+            <button type="button" class="chip" data-v="传记" onclick="UI.toggleChip(this)">传记</button>
+            <button type="button" class="chip" data-v="自然" onclick="UI.toggleChip(this)">自然</button>
+            <button type="button" class="chip" data-v="心理" onclick="UI.toggleChip(this)">心理</button>
+            <button type="button" class="chip" data-v="艺术" onclick="UI.toggleChip(this)">艺术</button>
+          </div>
+        </div>
+        <div class="demo-box" style="margin-top:0">
+          注册完成后，系统将根据你的<span style="color:var(--primary)">学段 + 目标 + 兴趣标签</span>生成动态阅读计划与推荐书单。
+        </div>
+        <button class="btn btn-primary btn-lg btn-block mt-16" type="submit">完成注册，开始阅读</button>
+      </form>
+    </div>
+  </main>
+</div>
+
+<script src="assets/js/store.js"></script>
+<script src="assets/js/ui.js"></script>
+<script>
+(function () {
+  if (Store.user()) { location.replace('student/home.html'); return; }
+
+  var state = { step: 0, role: 'student', stage: '初中', goals: ['思辨写作'], tags: ['文学', '科幻'] };
+  var phone = '';
+
+  function setStep(i) {
+    state.step = i;
+    document.querySelectorAll('#steps .step').forEach(function (s) {
+      var n = +s.dataset.i;
+      s.className = 'step' + (n < i ? ' done' : n === i ? ' now' : '');
+    });
+    ['s0', 's1', 's2'].forEach(function (k, j) {
+      document.getElementById(k).classList.toggle('hide', j !== i);
+    });
+    window.scrollTo({ top: 0 });
+  }
+
+  window.UI = Object.assign(window.UI || {}, {
+    s0Next: function (e) {
+      e.preventDefault();
+      phone = document.getElementById('r-phone').value;
+      var code = document.getElementById('r-code').value;
+      var pass = document.getElementById('r-pass').value;
+      if (!/^1\d{10}$/.test(phone)) { UI.toast('请输入正确的 11 位手机号', 'warning'); return false; }
+      if (code.length !== 4) { UI.toast('请输入 4 位验证码', 'warning'); return false; }
+      if (pass.length < 6) { UI.toast('密码至少 6 位', 'warning'); return false; }
+      if (!document.getElementById('r-agree').checked) { UI.toast('请先同意用户协议与隐私政策', 'warning'); return false; }
+      setStep(1);
+      return false;
+    },
+    pickRole: function (btn) {
+      document.querySelectorAll('#role-chips .chip').forEach(function (c) { c.classList.remove('selected'); });
+      btn.classList.add('selected');
+      state.role = btn.dataset.v;
+      document.getElementById('stu-fields').classList.toggle('hide', state.role !== 'student');
+      document.getElementById('teacher-hint').classList.toggle('hide', state.role !== 'teacher');
+    },
+    pickStage: function (btn) {
+      document.querySelectorAll('#stage-chips .chip').forEach(function (c) { c.classList.remove('selected'); });
+      btn.classList.add('selected');
+      state.stage = btn.dataset.v;
+      var g = document.getElementById('r-grade');
+      var map = {
+        '小学': ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级'],
+        '初中': ['七年级', '八年级', '九年级'],
+        '高中': ['高一', '高二', '高三'],
+        '高校': ['大一', '大二', '大三', '大四']
+      };
+      g.innerHTML = map[state.stage].map(function (x) { return '<option>' + x + '</option>'; }).join('');
+    },
+    s1Next: function (e) {
+      e.preventDefault();
+      if (state.role === 'teacher') {
+        // 教师：注册成功 → 认证引导（PRD 4.1.3）
+        Store.register({ phone: phone, pass: document.getElementById('r-pass').value, name: '新教师', role: 'teacher' });
+        UI.toast('注册成功，请完成教师认证后使用班级管理', 'success');
+        setTimeout(function () { location.replace('teacher/dashboard.html'); }, 500);
+        return false;
+      }
+      setStep(2);
+      return false;
+    },
+    toggleChip: function (btn) {
+      btn.classList.toggle('selected');
+      var v = btn.dataset.v;
+      var arr = btn.closest('.chip-group').id === 'goal-chips' ? state.goals : state.tags;
+      var i = arr.indexOf(v);
+      if (i >= 0) arr.splice(i, 1); else arr.push(v);
+    },
+    s2Done: function (e) {
+      e.preventDefault();
+      var r = Store.register({
+        phone: phone,
+        pass: document.getElementById('r-pass').value,
+        name: '新同学',
+        stage: state.stage,
+        grade: document.getElementById('r-grade').value,
+        school: document.getElementById('r-school').value,
+        goal: state.goals.join('、'),
+        tags: state.tags
+      });
+      UI.toast('注册成功，正在为你生成阅读计划…', 'success');
+      setTimeout(function () { location.replace('student/home.html'); }, 600);
+      return false;
+    }
+  });
+})();
+</script>
+</body>
+</html>

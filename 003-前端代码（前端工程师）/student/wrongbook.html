@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>错题本 · 伴读智汇</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+</head>
+<body>
+<div class="page" style="max-width:880px">
+  <div id="head"></div>
+  <div class="card" id="list"></div>
+</div>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script>
+(function () {
+  if (!UI.guard('student')) return;
+  UI.topbar('profile', { base: '../' });
+  document.getElementById('head').innerHTML = UI.pageHead('错题本', '思辨题、章节测错题 · 按弱项标签推送相似题');
+
+  function render() {
+    var wrong = Store.wrongList();
+    var box = document.getElementById('list');
+    if (!wrong.length) {
+      box.innerHTML = UI.empty('check', '太棒了，没有待复习的错题', '做错的题目会自动收集到这里，并推送相似题巩固',
+        '<a class="btn btn-primary" href="tasks.html?book=luotuoxiangzi&t=1">去做章节测</a>');
+      return;
+    }
+    box.innerHTML = wrong.map(function (w) {
+      var b = Store.book(w.bookId);
+      return '<div class="card-pad" style="border-bottom:1px solid var(--divider)">' +
+        '<div class="flex items-center gap-12" style="flex-wrap:wrap">' +
+        '<span class="tag tag-error">' + b.title + '</span>' +
+        '<span class="text-xs text-muted">' + w.date + '</span>' +
+        '<span style="margin-left:auto" class="tag tag-warning">待复习</span>' +
+        '</div>' +
+        '<div class="weight-600" style="font-size:15px;margin:12px 0 10px">' + w.q + '</div>' +
+        '<div class="grid grid-2" style="gap:12px">' +
+        '<div style="background:var(--error-weak);border-radius:8px;padding:10px 14px;font-size:13px">' +
+        '<span class="text-xs" style="color:var(--error)">我的答案</span><br><span style="text-decoration:line-through;color:var(--muted)">' + w.mine + '</span></div>' +
+        '<div style="background:var(--success-weak);border-radius:8px;padding:10px 14px;font-size:13px">' +
+        '<span class="text-xs" style="color:var(--success)">正确答案</span><br><b>' + w.right + '</b></div>' +
+        '</div>' +
+        '<p class="text-xs text-muted mt-12" style="line-height:1.9">' + UI.icon('bulb', 13) + ' 解析：' + w.exp + '</p>' +
+        '<div class="flex gap-12 mt-12">' +
+        '<button class="btn btn-sm btn-outline" onclick="UI.practice(\'' + w.q + '\')">' + UI.icon('spark', 14) + '相似题练习</button>' +
+        '<button class="btn btn-sm btn-ghost" onclick="UI.del(\'' + w.id + '\')">移除</button>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  window.UI = Object.assign(window.UI || {}, {
+    del: function (id) {
+      UI.confirmAct('从错题本移除这道题？', function () {
+        Store.removeWrong(id);
+        render();
+        UI.toast('已移除', 'success');
+      });
+    },
+    practice: function (q) {
+      UI.modal('<h3>相似题（演示）</h3><p class="modal-sub" style="line-height:1.9">基于"<b>' + UI.esc(q.slice(0, 14)) + '…</b>"的知识点，推荐引擎已推送一道同类题：</p>' +
+        '<div style="background:var(--bg);border-radius:8px;padding:14px 16px;font-size:14px;line-height:1.9">祥子第二次攒钱买车的钱来自哪里？这笔钱最终的结局如何？请结合文本作答。</div>',
+        [{ label: '关闭', value: null, primary: true }]);
+    }
+  });
+  render();
+})();
+</script>
+</body>
+</html>
